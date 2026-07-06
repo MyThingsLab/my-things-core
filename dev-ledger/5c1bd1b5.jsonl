@@ -6,3 +6,4 @@
 {"data":{"commit":"b2e89be","session":"5c1bd1b5"},"detail":"export engine/github/isolation contracts from the package root","kind":"build","outcome":"success","tool":"claude-code","ts":"2026-07-06T12:20:23Z"}
 {"data":{"session":"5c1bd1b5"},"detail":"core public, guard private \u2014 the private tool's CI clones public core with no token","kind":"decision","outcome":"success","tool":"claude-code","ts":"2026-07-06T12:28:00Z"}
 {"data":{"commit":"b2e89be","pr":"https://github.com/lorenzoliuzzo/mythings-core","session":"5c1bd1b5"},"detail":"pushed to github.com/lorenzoliuzzo/mythings-core; CI green on first push","kind":"ship","outcome":"success","tool":"claude-code","ts":"2026-07-06T12:28:26Z"}
+{"data":{"commit":"5314923","session":"5c1bd1b5"},"detail":"add in-repo build-provenance ledger (dogfoods mythings.ledger) + convention doc; backfilled from history","kind":"build","outcome":"success","tool":"claude-code","ts":"2026-07-06T12:37:38Z"}
