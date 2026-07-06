@@ -1,1 +1,2 @@
 {"data":{"session":"2026-07-06"},"detail":"design docs for next My[X] tools (Reporter, Tester, Searcher, Reviewer, Groomer)","kind":"build","outcome":"success","tool":"claude-code","ts":"2026-07-06T13:32:10Z"}
+{"data":{"session":"2026-07-06"},"detail":"design doc for MyTelegramBot: Policy-decorator that relays ASK to a human over Telegram","kind":"build","outcome":"success","tool":"claude-code","ts":"2026-07-06T13:35:23Z"}
