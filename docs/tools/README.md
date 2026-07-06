@@ -15,6 +15,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 
 | Tool | One line | Engine call | Doc |
 |---|---|---|---|
+| MyOrchestrator | picks the single next unit of work across the whole fleet | optional: "break a tie among top candidates" | [my-orchestrator.md](my-orchestrator.md) |
 | MyTester | writes a test for one uncovered unit | "write a test for this one uncovered unit" | [my-tester.md](my-tester.md) |
 | MyReporter | digests Ledger + dev-ledger into a report | none (optional prose summary) | [my-reporter.md](my-reporter.md) |
 | MySearcher | ranks files relevant to an issue | "rank relevant files for this task" | [my-searcher.md](my-searcher.md) |
@@ -33,6 +34,12 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 
 ## Recommended build order
 
+0. **MyOrchestrator** — build before everything below, including MyTester.
+   It's the only tool with zero dependency on any other `My[X]` tool, and
+   it exists precisely to replace *this list* (a build order decided once,
+   in conversation) with a live, re-computed answer to "what next" —
+   see its doc for why that matters while only one worker (the
+   interactive session) can act on any of this.
 1. **MyTester** — smallest full loop (issue → deterministic pre-work → one
    Engine call → PR → ledger); validates the harness pattern end-to-end
    before anything else copies it. Also the only tool other than MyCoder
@@ -90,6 +97,17 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 
 ## Cross-cutting notes
 
+- **MyOrchestrator addresses a real bootstrapping gap, without becoming a
+  daemon.** [`ARCHITECTURE.md`](../ARCHITECTURE.md) states "no
+  scheduler/daemon — GitHub Actions `schedule:`/event triggers are the
+  conductor," which holds once a real `Engine` backend lets CI run judgment
+  steps unattended. Until then, that conductor role has no automated
+  substitute — the single interactive Claude session is the only worker,
+  and prioritizing across 15 tools' backlogs has been happening ad hoc, in
+  conversation. MyOrchestrator is still a one-shot CLI (`myorchestrator
+  next`), not a daemon — it doesn't violate the principle, it just makes
+  the single-worker interim explicit and re-computable instead of
+  memory-dependent.
 - **Core contract changes are not free.** MyReviewer needs `diff()` and
   MyGroomer needs `create_issue`/`add_labels`/`list_labels` added to
   `github.GitHub`. Per the workspace CLAUDE.md's architectural-change rule,
