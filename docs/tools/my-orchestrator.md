@@ -39,11 +39,16 @@ and say why."
 
 1. List every repo under the `MyThingsLab` org.
 2. For each existing tool repo, list open issues carrying that tool's own
-   backlog label (per its design doc). For proposal-only "tools" with no
-   repo yet (checked against `gh repo list` — same collision check
-   MyScaffolder's pre-work already does), the candidate *is* "scaffold
-   this tool," sourced from this directory's table in
-   [README.md](README.md) rather than a live issue.
+   backlog label (per its design doc), **plus every open `mother`-labeled
+   issue** (see [ISSUE_HIERARCHY.md](ISSUE_HIERARCHY.md)) due for a
+   MyGroomer pass — a mother whose current leaf batch is fully closed
+   (either to spawn its next batch or to be closed outright). A mother
+   candidate's target tool is always MyGroomer, never the tool its
+   eventual leaves will need. For proposal-only "tools" with no repo yet
+   (checked against `gh repo list` — same collision check MyScaffolder's
+   pre-work already does), the candidate *is* "scaffold this tool," sourced
+   from this directory's table in [README.md](README.md) rather than a
+   live issue.
 3. Filter to **ready** candidates only: a not-yet-built tool is ready only
    if every dependency listed in its own doc's "Dependencies & build order"
    section is already satisfied (a core-contract addition landed, a
@@ -53,8 +58,12 @@ and say why."
    MyGroomer's "process oldest-first"), boosted by live urgency signals
    read from each repo's ledger — an unresolved `kind=drift`/
    `outcome=drift_found`, or a `kind=ask` (MyTelegramBot) still awaiting a
-   reply, jump the queue. If ranking produces a single top candidate (the
-   common case), skip the Engine call entirely and report it directly.
+   reply, jump the queue. **A leaf belonging to an already-open mother
+   outranks starting a brand-new mother of the same age** — the same
+   "finish what's open before spreading into a new epic" instinct
+   MyGroomer's own pre-work now applies. If ranking produces a single top
+   candidate (the common case), skip the Engine call entirely and report
+   it directly.
 5. Only on a genuine tie among top candidates does the Engine call (above)
    fire.
 
@@ -111,13 +120,19 @@ rest of this batch gets built in an order the tool itself would recommend,
 rather than one decided ad hoc in conversation.
 
 **Open questions:**
-- **Where does the dependency graph among not-yet-built tools live?**
-  Step 3's readiness check needs machine-readable `depends_on` data per
-  tool; today that's prose in each doc's "Dependencies" section. Either
-  MyOrchestrator parses this directory's docs (fragile — prose isn't a
-  schema) or a small `docs/tools/manifest.yaml` gets introduced and kept
-  in sync by hand alongside each doc. Leaning toward the manifest, but
-  that's a new artifact this batch doesn't have yet — not decided.
+- ~~Where does the dependency graph among not-yet-built tools live?~~
+  Resolved in the first real build: a dependency-free `manifest.json`
+  (not `.yaml`), shipped inside the `my-orchestrator` repo initially. Its
+  canonical copy should move to `docs/tools/` so it sits next to the docs
+  it describes and other tools (MyGroomer's readiness checks, if it ever
+  needs them) can read the same file instead of a private copy — not yet
+  done, flagged for a follow-up.
+- **Mother candidates need a signal for "current batch fully closed."**
+  Step 2's mother enumeration has to check each open mother's linked
+  leaves' state — either by parsing its checklist body (fragile, prose)
+  or a structured field MyGroomer writes into its own ledger entries that
+  MyOrchestrator can read instead of scraping GitHub issue bodies. Leaning
+  toward the latter (ledger `data` is already structured), not decided.
 - **This is the first tool whose default scope is the whole fleet**, not
   one repo — worth confirming that's actually wanted (vs. an
   explicit `--repos` flag like MyWiki/MyReporter) before building, since it

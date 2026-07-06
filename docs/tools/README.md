@@ -10,6 +10,9 @@ step-by-step *how* of turning a doc into a shipped repo, see
 confirmed — matching the existing `my-guard` convention, no monorepo. New
 tools scaffold from [mythings-template.md](mythings-template.md), a
 dedicated (not-a-tool) template repo — build that before MyScaffolder.
+Backlog shape: [ISSUE_HIERARCHY.md](ISSUE_HIERARCHY.md) defines the
+mother/leaf issue convention MyGroomer implements and MyOrchestrator's
+ranking accounts for.
 
 ## The tools
 
@@ -20,7 +23,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyReporter | digests Ledger + dev-ledger into a report | none (optional prose summary) | [my-reporter.md](my-reporter.md) |
 | MySearcher | ranks files relevant to an issue | "rank relevant files for this task" | [my-searcher.md](my-searcher.md) |
 | MyReviewer | flags correctness bugs on an open PR | "does this diff have a correctness bug?" | [my-reviewer.md](my-reviewer.md) |
-| MyGroomer | labels/splits raw issues into ready units | "split/label this issue" | [my-groomer.md](my-groomer.md) |
+| MyGroomer | labels/splits raw issues into ready units, owns the mother/leaf lifecycle | "split/label this issue" | [my-groomer.md](my-groomer.md) |
 | MyTelegramBot | pushes ledger notifications; relays `Policy` `ASK` to a human over Telegram | none | [my-telegram-bot.md](my-telegram-bot.md) |
 | MyScaffolder | bootstraps a new My[X] tool repo from a proposal | "expand a proposal into the four CLAUDE.md seams" | [my-scaffolder.md](my-scaffolder.md) |
 | MyWiki | answers "what happened / why" from *this project's own* ledger history | "answer this question using only these ledger excerpts" | [my-wiki.md](my-wiki.md) |
@@ -57,8 +60,10 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
    `github.GitHub.diff()` method.
 5. **MyGroomer** — last: its Engine call ("split or just label") has the
    widest judgment surface of the five, so it benefits most from the other
-   four having already proven the pattern. Depends on three new
-   `github.GitHub` methods (`create_issue`, `add_labels`, `list_labels`).
+   four having already proven the pattern. Depends on four new
+   `github.GitHub` methods (`create_issue`, `add_labels`, `list_labels`,
+   `close_issue` — the last one added for the mother/leaf lifecycle, see
+   [ISSUE_HIERARCHY.md](ISSUE_HIERARCHY.md)).
 6. **MyTelegramBot** — independent of the other five (no `github`/`engine`/
    `isolation` dependency at all — it only touches `policy` and `ledger`).
    Can be built any time, but is most useful once MyTester can actually
@@ -109,11 +114,22 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   the single-worker interim explicit and re-computable instead of
   memory-dependent.
 - **Core contract changes are not free.** MyReviewer needs `diff()` and
-  MyGroomer needs `create_issue`/`add_labels`/`list_labels` added to
-  `github.GitHub`. Per the workspace CLAUDE.md's architectural-change rule,
-  each addition should be proposed and confirmed before implementation —
-  they're small, thin wrappers in the existing style, not new contracts,
-  but they still touch shared code every tool depends on.
+  MyGroomer needs `create_issue`/`add_labels`/`list_labels`/`close_issue`
+  added to `github.GitHub`. Per the workspace CLAUDE.md's
+  architectural-change rule, each addition should be proposed and
+  confirmed before implementation — they're small, thin wrappers in the
+  existing style, not new contracts, but they still touch shared code
+  every tool depends on.
+- **Mother/leaf issues — a backlog shape, not a new tool.** See
+  [ISSUE_HIERARCHY.md](ISSUE_HIERARCHY.md): a long-lived `mother` issue
+  (an epic, tracked and incrementally decomposed across many MyGroomer
+  runs) versus small `leaf` issues (one tool, one Engine call, one
+  session — the harness's existing base unit, just named explicitly now).
+  This changes MyGroomer's pre-work (four modes instead of one flat split)
+  and MyOrchestrator's candidate set (mothers due for grooming are
+  candidates too, and finishing an open mother's leaves outranks starting
+  a new one). No new tool, no new Engine call — both reuse what MyGroomer
+  already had.
 - **Guard granularity.** Most tools' side effects are generic
   `Action(kind="bash", ...)`, which MyGuard's default rules already cover
   (merge/force-push/protected-branch/destructive-command patterns).
