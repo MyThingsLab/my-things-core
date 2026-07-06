@@ -15,6 +15,7 @@ is self-contained; this page only orders and connects them.
 | MySearcher | ranks files relevant to an issue | "rank relevant files for this task" | [my-searcher.md](my-searcher.md) |
 | MyReviewer | flags correctness bugs on an open PR | "does this diff have a correctness bug?" | [my-reviewer.md](my-reviewer.md) |
 | MyGroomer | labels/splits raw issues into ready units | "split/label this issue" | [my-groomer.md](my-groomer.md) |
+| MyTelegramBot | pushes ledger notifications; relays `Policy` `ASK` to a human over Telegram | none | [my-telegram-bot.md](my-telegram-bot.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
@@ -38,6 +39,11 @@ is self-contained; this page only orders and connects them.
    widest judgment surface of the five, so it benefits most from the other
    four having already proven the pattern. Depends on three new
    `github.GitHub` methods (`create_issue`, `add_labels`, `list_labels`).
+6. **MyTelegramBot** — independent of the other five (no `github`/`engine`/
+   `isolation` dependency at all — it only touches `policy` and `ledger`).
+   Can be built any time, but is most useful once MyTester can actually
+   trigger a real `ASK`, so build it after MyTester if sequencing by payoff
+   rather than by dependency.
 
 ## Cross-cutting notes
 
@@ -54,6 +60,19 @@ is self-contained; this page only orders and connects them.
   *structured* `Action.kind` (e.g. `"issue-split"` with a `payload={"count":
   k}`) so Guard can reason about something more specific than a shell
   string — noted in its doc as an open question, not decided here.
+- **First third-party service dependency.** Every tool above only ever
+  talks to GitHub. MyTelegramBot is the first to call a service outside
+  that boundary (the Telegram Bot API) and the first to need CI secrets
+  beyond the `gh`/`git` identity the harness already assumes — both are
+  flagged in its doc as decisions to confirm before implementation, not
+  settled here.
+- **What `ASK` means changes once MyTelegramBot exists.** Today
+  `PolicyResult.under(unattended=True)` collapses `ASK` to `DENY` because
+  nothing can ask a human in CI. `TelegramPolicy` (MyTelegramBot's core
+  export) wraps any `Policy` and gives `ASK` a real, bounded-timeout human
+  channel — with the same fail-closed default (timeout/error → `DENY`) so
+  the existing safety property never regresses, it just gets a chance to
+  resolve to `ALLOW` first.
 - **MySearcher / graphify synergy.** MySearcher's deterministic pre-work
   (naive token-overlap shortlisting) is a placeholder for a better index.
   The `graphify` skill already builds a queryable knowledge graph of a
