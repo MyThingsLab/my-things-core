@@ -29,13 +29,15 @@ label)."
 2. Derive the repo/package name from the issue title; check it doesn't
    already exist under the `MyThingsLab` org (`gh repo list MyThingsLab`) —
    abort on collision.
-3. Copy scaffold files byte-for-byte from a reference tool
-   (`my-guard`): `pyproject.toml`, `ci.yml`, `.gitignore`, `LICENSE`,
-   `.pre-commit-config.yaml`, `dev-ledger/` (empty).
-4. Vendor `HARNESS.md` fresh via `mythings._harness.harness_text()` — never
-   copied from another tool's vendored copy, so it can't start pre-drifted.
-5. Fill `CLAUDE.template.md` with the four seams (from the Engine call
-   above) and write it as the new repo's `CLAUDE.md`.
+3. Copy scaffold files byte-for-byte from the dedicated
+   [`mythings-template`](mythings-template.md) repo (`pyproject.toml`,
+   `ci.yml`, `.gitignore`, `LICENSE`, `.pre-commit-config.yaml`,
+   `dev-ledger/`, `HARNESS.md`, `tests/test_harness_drift.py`) — resolved
+   from the open question below: a dedicated template repo, not an
+   existing tool, so nothing tool-specific gets copied by accident.
+4. Fill `CLAUDE.template.md` (already present in the template's contents)
+   with the four seams from the Engine call above and write it as the new
+   repo's `CLAUDE.md`.
 
 ## Ledger
 
@@ -90,16 +92,19 @@ The second form skips issue-reading for interactive/manual use.
 ## Dependencies & build order
 
 Depends on core `ledger`, `policy`, `github` (needs `repo_create`, not yet
-present — new thin method, same pattern as existing ones). Meta relative to
-the other tools — it doesn't help until there's a backlog of new tool
+present — new thin method, same pattern as existing ones) and on
+[`mythings-template`](mythings-template.md) already existing (create that
+repo first — it's a one-time, not-harness-built piece of infrastructure,
+not a `My[X]` tool with its own build-order slot). Meta relative to the
+other tools — it doesn't help until there's a backlog of new tool
 proposals, so it pays off only after several more `My[X]` tools are queued.
 Reasonable to build once 2-3 more tools are planned rather than first.
 
 **Open questions:**
-- Should the reference scaffold be copied from an existing tool (as
-  designed) or from a dedicated, never-deployed `mythings-template` repo?
-  The latter avoids accidentally copying a tool-specific stray file; not
-  decided, flagged for whoever builds this.
+- ~~Should the reference scaffold be copied from an existing tool or a
+  dedicated template repo?~~ Resolved — see
+  [mythings-template.md](mythings-template.md); MyScaffolder depends on
+  that repo existing before it can be built.
 - `isolation.Workspace` not covering "create from scratch" is a real gap
   in the core contract, not just this tool's problem — worth a deliberate
   decision before implementation, per the workspace's architectural-change

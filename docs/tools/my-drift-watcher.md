@@ -20,9 +20,10 @@ file's structured content; no judgment is needed to detect it.
    table, `.pre-commit-config.yaml`, `ci.yml`'s job shape), fetch its
    content from each repo (`gh api repos/.../contents/...`, no full clone
    needed since no edits happen).
-3. Compare each repo's copy against either a designated canonical source
-   (if one exists, e.g. `mythings-core`'s own copy) or the majority version
-   across repos if no canonical source is designated for that file.
+3. Compare each repo's copy against [`mythings-template`](mythings-template.md)'s
+   copy of the same file — resolved from the open question below: the
+   dedicated template repo is canonical, not a majority vote across
+   whatever tool repos currently exist.
 4. Produce a structured diff: `{file, repos_affected: [{repo, diff}]}` per
    tracked file.
 5. Compare against this tool's own last `kind=drift` entry for the same
@@ -65,17 +66,18 @@ mydriftwatcher scan [--repos core,my-guard,...] [--file pyproject.toml]
 
 Depends on core `ledger`, `policy`, `github` (needs a `repo_list` and a
 generic `get_file_contents` method — new thin wrappers, same pattern as
-existing ones). Low urgency while only 2-3 repos exist — drift only
-matters once there's enough repos to diverge. Reasonable to build near the
-end of this batch, once MyScaffolder exists and is producing new repos
-regularly (it directly benefits from a fresh scaffold reliably matching
-convention, which MyDriftWatcher verifies over time).
+existing ones) and on [`mythings-template`](mythings-template.md) existing
+(it's the canonical source, not optional). Low urgency while only 2-3
+repos exist — drift only matters once there's enough repos to diverge.
+Reasonable to build near the end of this batch, once MyScaffolder exists
+and is producing new repos regularly (it directly benefits from a fresh
+scaffold reliably matching convention, which MyDriftWatcher verifies over
+time).
 
 **Open questions:**
-- Whether "canonical source" should be `mythings-core`'s own copy of each
-  tracked file, or a dedicated conventions-only repo — mirrors
-  MyScaffolder's open question about a template repo; likely the same
-  answer should apply to both.
+- ~~Whether "canonical source" should be a majority vote or a dedicated
+  repo?~~ Resolved — see [mythings-template.md](mythings-template.md),
+  the same answer MyScaffolder's identical open question settled on.
 - Full-clone vs. `contents` API for fetching tracked files: the API avoids
   a clone but is fine-grained (one call per file per repo); assumed
   sufficient for v0 given the tracked file set is small and fixed.

@@ -17,10 +17,13 @@ shared dependency between tools; no monorepo.
    below. Land those in `mythings-core` as their own reviewed PR *before*
    starting a tool that depends on one; don't add a method reactively
    mid-tool.
-2. **Scaffold** via [`CONVENTIONS.md`](../CONVENTIONS.md)'s "Starting a new
-   tool" section: copy `pyproject.toml`, `ci.yml`, `.gitignore`, `LICENSE`,
-   `.pre-commit-config.yaml`, `dev-ledger/` from an existing tool (`my-guard`
-   until MyScaffolder exists, then MyScaffolder).
+2. **Scaffold from [`mythings-template`](mythings-template.md)** — use
+   GitHub's "Use this template" button (or MyScaffolder, once it exists) to
+   copy `pyproject.toml`, `ci.yml`, `.gitignore`, `LICENSE`,
+   `.pre-commit-config.yaml`, `dev-ledger/`, `HARNESS.md`, and the
+   drift-check test in one step. Don't copy from an existing tool repo —
+   that risks pulling in tool-specific stray content, which is exactly why
+   the template repo exists.
 3. **Fill `CLAUDE.md`** from `CLAUDE.template.md`, transcribing straight out
    of the design doc: "Purpose" → purpose line, "The single Engine call" →
    that seam verbatim, "Guard & Workspace" → invariants, "Purpose" header's

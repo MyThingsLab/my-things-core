@@ -7,7 +7,9 @@ seams explained in [`../CONVENTIONS.md`](../CONVENTIONS.md). Each doc below
 is self-contained; this page only orders and connects them. For the
 step-by-step *how* of turning a doc into a shipped repo, see
 [BUILD_GUIDE.md](BUILD_GUIDE.md). Repo layout: **one repo per tool**,
-confirmed — matching the existing `my-guard` convention, no monorepo.
+confirmed — matching the existing `my-guard` convention, no monorepo. New
+tools scaffold from [mythings-template.md](mythings-template.md), a
+dedicated (not-a-tool) template repo — build that before MyScaffolder.
 
 ## The tools
 
@@ -146,12 +148,13 @@ confirmed — matching the existing `my-guard` convention, no monorepo.
   dependency is core" property intact — but putting RAG-specific shape
   into a dependency-free SDK deserves its own discussion; not decided here,
   each affected doc flags it rather than picking silently.
-- **A repeated open question: reference scaffold vs. dedicated template
-  repo.** Both MyScaffolder (copying a new tool's boilerplate) and
-  MyDriftWatcher (defining "canonical" for drift comparison) independently
-  raise the same question — copy from an existing tool repo, or maintain a
-  separate `mythings-template`-style repo nothing ever deploys from. Likely
-  the same answer should apply to both; not decided here.
+- **Resolved: dedicated template repo, not copy-from-existing-tool.**
+  MyScaffolder and MyDriftWatcher independently raised the same question;
+  see [mythings-template.md](mythings-template.md) — a standalone,
+  never-deployed `MyThingsLab/mythings-template` repo is now the single
+  canonical source both tools depend on. It isn't a `My[X]` tool itself
+  (no Engine call, not issue-driven) and isn't in the build order below;
+  create it before MyScaffolder or MyDriftWatcher's build starts.
 - **PR descriptions are a separate concern from opening a PR.** MyDescriber
   enriches an already-open PR's title/body rather than every PR-opening
   tool (MyTester, MyChangelogger, eventually MyCoder) each generating its
