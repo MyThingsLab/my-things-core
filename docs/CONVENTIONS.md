@@ -36,7 +36,7 @@ tool invariants, and the backlog label. Starting a new tool = filling those.
 | Provenance per session | `PROVENANCE.md` | (deferred) `Stop` hook |
 | CI hygiene / Linux-only | `harness.md` | the `ci.yml` itself |
 | All-public / no surprise bill | this doc | org default visibility + $0 spending limit |
-| Separate from MoneyBallingAI | `harness.md` | org placement (`MyThingsLab`) |
+| Isolated from other ventures | `harness.md` | org placement (`MyThingsLab`) |
 | Harness rules stay in sync | this doc | drift-check test (`HARNESS.md` == canonical) |
 
 ## The CLAUDE.md hierarchy

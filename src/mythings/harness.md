@@ -38,7 +38,7 @@ re-vendor the `HARNESS.md` copies.
 
 ## Ownership & placement
 - All MyThingsLab repos live under the `MyThingsLab` GitHub org, public, and are
-  kept **entirely separate from MoneyBallingAI**. Never mix the two.
+  kept **entirely isolated from other ventures**. Never mix them.
 
 ## The per-tool seams (fill these; everything above is fixed)
 - Name `my-<x>` / package `my<x>`; one-line purpose.

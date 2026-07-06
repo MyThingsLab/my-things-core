@@ -6,4 +6,4 @@ def test_harness_text_is_shipped_and_nonempty() -> None:
     assert text.startswith("# MyThingsLab build harness")
     # A couple of load-bearing rules must survive any edit.
     assert "PR — never a merge" in text
-    assert "separate from MoneyBallingAI" in text
+    assert "isolated from other ventures" in text
