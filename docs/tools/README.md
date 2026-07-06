@@ -4,7 +4,10 @@ Design docs for the next tools in the MyThingsLab line, all buildable now
 against `NoopEngine` (zero tokens), per the harness in
 [`../../src/mythings/harness.md`](../../src/mythings/harness.md) and the
 seams explained in [`../CONVENTIONS.md`](../CONVENTIONS.md). Each doc below
-is self-contained; this page only orders and connects them.
+is self-contained; this page only orders and connects them. For the
+step-by-step *how* of turning a doc into a shipped repo, see
+[BUILD_GUIDE.md](BUILD_GUIDE.md). Repo layout: **one repo per tool**,
+confirmed — matching the existing `my-guard` convention, no monorepo.
 
 ## The tools
 
