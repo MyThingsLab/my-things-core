@@ -16,6 +16,12 @@ is self-contained; this page only orders and connects them.
 | MyReviewer | flags correctness bugs on an open PR | "does this diff have a correctness bug?" | [my-reviewer.md](my-reviewer.md) |
 | MyGroomer | labels/splits raw issues into ready units | "split/label this issue" | [my-groomer.md](my-groomer.md) |
 | MyTelegramBot | pushes ledger notifications; relays `Policy` `ASK` to a human over Telegram | none | [my-telegram-bot.md](my-telegram-bot.md) |
+| MyScaffolder | bootstraps a new My[X] tool repo from a proposal | "expand a proposal into the four CLAUDE.md seams" | [my-scaffolder.md](my-scaffolder.md) |
+| MyKnowledger | answers "what happened / why" from ledger history | "answer this question using only these ledger excerpts" | [my-knowledger.md](my-knowledger.md) |
+| MyAdvisor | recommends a course of action with trade-offs | "recommend an answer, with trade-offs" | [my-advisor.md](my-advisor.md) |
+| MyChangelogger | turns ship/fix ledger entries into a CHANGELOG.md section | none | [my-changelogger.md](my-changelogger.md) |
+| MyDriftWatcher | flags cross-repo convention drift | none | [my-drift-watcher.md](my-drift-watcher.md) |
+| MyGrapher | keeps a repo's knowledge graph fresh for other tools to query | none | [my-grapher.md](my-grapher.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
@@ -44,6 +50,25 @@ is self-contained; this page only orders and connects them.
    Can be built any time, but is most useful once MyTester can actually
    trigger a real `ASK`, so build it after MyTester if sequencing by payoff
    rather than by dependency.
+7. **MyChangelogger** — low complexity, same PR shape as MyTester but
+   editing one well-understood file. Build early relative to the rest of
+   this second batch, right after MyReporter (shares its ledger-reading
+   conventions).
+8. **MyKnowledger** — reuses MyReporter's ledger-merging logic; build after
+   it. Independent of MySearcher/MyGrapher for v0 (keyword match is enough).
+9. **MyGrapher** — build after MySearcher: its purpose is retrofitting
+   MySearcher's (and later MyReviewer's) naive shortlist step with a real
+   graph query, so MySearcher needs to exist first to have something worth
+   retrofitting.
+10. **MyScaffolder** — meta relative to every other tool; doesn't pay off
+    until several more tool proposals are queued. Build once that backlog
+    exists, not first.
+11. **MyDriftWatcher** — low urgency while only 2-3 repos exist; drift only
+    matters once there's enough repos to diverge. Most valuable once
+    MyScaffolder is producing new repos regularly.
+12. **MyAdvisor** — last: depends on both MyKnowledger's and MySearcher's
+    shortlist logic, and its judgment quality can't be meaningfully
+    validated against `NoopEngine` (same limitation as MyCoder).
 
 ## Cross-cutting notes
 
@@ -73,13 +98,27 @@ is self-contained; this page only orders and connects them.
   channel — with the same fail-closed default (timeout/error → `DENY`) so
   the existing safety property never regresses, it just gets a chance to
   resolve to `ALLOW` first.
-- **MySearcher / graphify synergy.** MySearcher's deterministic pre-work
-  (naive token-overlap shortlisting) is a placeholder for a better index.
-  The `graphify` skill already builds a queryable knowledge graph of a
-  codebase's file relationships — a future MySearcher revision could use a
-  `graphify-out/` graph as its candidate-shortlist source instead of naive
-  overlap, with the Engine call unchanged (it still just reorders a
-  shortlist). Not built now; noted for whoever picks MySearcher up.
+- **MySearcher / graphify synergy — now a real tool.** MySearcher's
+  deterministic pre-work (naive token-overlap shortlisting) was flagged as
+  a placeholder; MyGrapher is that upgrade. It deliberately never performs
+  graphify's LLM-using initial build — only the LLM-free incremental
+  `--update` path — so it can't smuggle a second Engine call into tools
+  that consume it. It requires a graph to already exist (bootstrapped once
+  by a human via `/graphify`), and refuses to bootstrap one itself.
+- **Cross-tool code reuse isn't settled.** MyAdvisor wants MyKnowledger's
+  and MySearcher's shortlist logic; MyKnowledger and MyReporter share
+  ledger-merging. Two options: `My[X]` tools depend on each other as
+  installed packages (like `my-guard` depends on `mythings-core`), or
+  shared retrieval helpers get promoted into `mythings-core` once
+  duplicated across ≥2 tools. Leaning toward the latter — it keeps the
+  harness's "only shared dependency is core" property intact — but this
+  isn't decided; each affected doc flags it rather than picking silently.
+- **A repeated open question: reference scaffold vs. dedicated template
+  repo.** Both MyScaffolder (copying a new tool's boilerplate) and
+  MyDriftWatcher (defining "canonical" for drift comparison) independently
+  raise the same question — copy from an existing tool repo, or maintain a
+  separate `mythings-template`-style repo nothing ever deploys from. Likely
+  the same answer should apply to both; not decided here.
 
 ## MyCoder (deferred)
 
