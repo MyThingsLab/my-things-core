@@ -55,9 +55,11 @@ with a drift-check test failing CI if the copy goes stale.
 
 ## Starting a new tool
 
-1. Copy the scaffold (pyproject, `ci.yml`, `.gitignore`, LICENSE, `.pre-commit-config.yaml`,
-   `dev-ledger/`, `HARNESS.md`) from an existing tool.
-2. Copy [`CLAUDE.template.md`](CLAUDE.template.md) to the repo root as `CLAUDE.md`
-   and fill the four seams.
+1. Copy the [`my-template`](../../my-template) scaffold (pyproject, `ci.yml`,
+   `.gitignore`, LICENSE, `.pre-commit-config.yaml`, `dev-ledger/`, `HARNESS.md`,
+   the drift-check test) to `../my-<x>` and replace the `template` placeholder —
+   see its README for the exact rename. `my-template` mirrors
+   [`CLAUDE.template.md`](CLAUDE.template.md) as its `CLAUDE.md`.
+2. Fill the four seams in the copied `CLAUDE.md`.
 3. `pip install -e ../mythings-core -e ".[dev]" && pre-commit install`.
 4. Red → green → refactor locally; open a PR; let CI gate it.
