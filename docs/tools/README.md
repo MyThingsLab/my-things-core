@@ -25,6 +25,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyScaffolder | bootstraps a new My[X] tool repo from a proposal | "expand a proposal into the four CLAUDE.md seams" | [my-scaffolder.md](my-scaffolder.md) |
 | MyWiki | answers "what happened / why" from *this project's own* ledger history | "answer this question using only these ledger excerpts" | [my-wiki.md](my-wiki.md) |
 | MyKnowledger | answers domain questions from *external* literature (papers/books/web) | "answer this question using only these knowledge-graph excerpts" | [my-knowledger.md](my-knowledger.md) |
+| MyResearcher | discovers external sources live (web + arXiv), writes a cited study brief; orders topics into a study path | "write a study brief from these discovered sources" / "order these researched topics" | [my-researcher.md](my-researcher.md) |
 | MyAdvisor | recommends a course of action with trade-offs | "recommend an answer, with trade-offs" | [my-advisor.md](my-advisor.md) |
 | MyChangelogger | turns ship/fix ledger entries into a CHANGELOG.md section | none | [my-changelogger.md](my-changelogger.md) |
 | MyDriftWatcher | flags cross-repo convention drift | none | [my-drift-watcher.md](my-drift-watcher.md) |
@@ -167,6 +168,19 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   just point at different corpora (project ledger vs. an external
   literature graph) — and both write distinct ledger `kind`s (`wiki` vs.
   `knowledge`) so their entries never collide.
+- **MyResearcher is discovery, not retrieval.** MyKnowledger *answers* from a
+  corpus a human already built; MyResearcher *goes and finds* the sources live
+  (web + arXiv) and writes a cited study brief — the opposite direction of the
+  same literature domain. It is the **second tool to touch a live external
+  service** after MyTelegramBot (a web-search provider's API, plus keyless
+  arXiv), so it inherits the same "new CI secret, confirm before implementing,
+  mock the boundary in the default suite" discipline. It never ingests a corpus
+  itself (the same fence MyKnowledger/MyGrapher hold) — it can only *hand a human*
+  a source list to graphify out of band, which is what could later feed
+  MyKnowledger. Its `plan` mode orders *external study topics*, distinct from
+  my-planner's *fleet-backlog* sequencing (different corpus, different ledger
+  `kind`); promote a shared "order-a-set" helper to core only if a third caller
+  appears.
 - **Cross-tool code reuse isn't settled.** MyAdvisor wants MyWiki's and
   MySearcher's shortlist logic; MyWiki and MyReporter share ledger-merging.
   Counting MyKnowledger, **five** tools now independently implement
