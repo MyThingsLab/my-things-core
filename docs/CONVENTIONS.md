@@ -63,3 +63,17 @@ with a drift-check test failing CI if the copy goes stale.
 2. Fill the four seams in the copied `CLAUDE.md`.
 3. `pip install -e ../mythings-core -e ".[dev]" && pre-commit install`.
 4. Red → green → refactor locally; open a PR; let CI gate it.
+
+## `docs/tools/<name>.md` goes historical at first ship
+
+Each doc under `docs/tools/` is a **pre-build design plan** — written to think
+through a tool before its repo exists. Once that tool ships, the doc is frozen:
+add a one-line historical banner pointing at the tool's own `README.md` /
+`CLAUDE.md`, and stop editing it for ordinary feature work. A CLI flag, a new
+render mode, an internal refactor — none of that touches core; it's a
+single-repo, single-PR change in the tool.
+
+Come back and edit the frozen doc only for something genuinely cross-tool: a
+new Engine-seam pattern other tools should copy, a new core dependency, a
+change to the tool's five-seam contract itself. Rule of thumb: if the change
+is describable entirely inside the tool's own repo, it doesn't belong in core.
