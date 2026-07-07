@@ -21,8 +21,7 @@ def test_claude_cli_engine_builds_argv_and_extracts_result_text() -> None:
 
     assert result == EngineResult(text="ship it", data={"result": "ship it", "is_error": False})
     argv = fake.calls[0]
-    assert argv[:4] == ["-p", "--output-format", "json", "--tools"]
-    assert argv[4] == ""  # tools disabled: judgment only, no side effects
+    assert argv[:4] == ["-p", "--output-format", "json", "--tools="]  # one token: tools disabled
     assert "--system-prompt" in argv and "be terse" in argv
     assert "--model" in argv and "claude-sonnet-5" in argv
     assert argv[-1] == "pick one"  # prompt passed last, positionally
@@ -35,6 +34,11 @@ def test_claude_cli_engine_omits_optional_flags_when_unset() -> None:
     argv = fake.calls[0]
     assert "--system-prompt" not in argv
     assert "--model" not in argv
+    # Regression: with no --system-prompt/--model following, "--tools" as two
+    # tokens ("--tools", "") let the CLI's variadic parser swallow this
+    # positional prompt too. Must stay the single joined "--tools=" token.
+    assert "--tools=" in argv
+    assert argv[-1] == "x"  # prompt still positional-last, not swallowed
 
 
 def test_claude_cli_engine_degrades_to_empty_on_nonzero_exit() -> None:
