@@ -170,17 +170,33 @@ provider secret wired (`gh secret set <PROVIDER>_API_KEY -R
 MyThingsLab/my-researcher`) before it works live. Build order: standalone; slots
 alongside or after MyKnowledger.
 
-**Open questions:**
+## v0 build decisions (resolved during implementation)
 
-- **Which web-search provider is the default?** Pluggable via env; pick one when
-  wiring the secret (Tavily/Brave/SerpAPI all fit the same JSON-REST shape). Not
-  decided here; arXiv-only is the zero-config fallback until then.
-- **Cache downloaded PDFs, or cite metadata only?** Leaning metadata-only for v0
-  — no binary blobs in the repo; a human runs graphify ingest over the cited
-  sources out of band if they want MyKnowledger to answer from them later.
+- **Web provider: Tavily** — chosen for the default web backend (`TAVILY_API_KEY`);
+  it returns ranked, snippet-bearing results built for LLM consumption, over the
+  same JSON-REST shape the retrieval layer keeps pluggable. arXiv stays the
+  keyless zero-config fallback.
+- **`plan` gathers from the ledger.** v0 assembles its topic set from the
+  `kind=research` ledger entries (each carries `topic` + `summary`); reading the
+  committed `research/<topic>.md` as a fallback source is a later enhancement, not
+  needed once the brief run records `summary`.
+- **`brief` ledger `data` carries `summary`** (in addition to the doc's original
+  fields) so `plan` can order topics without re-reading files.
+- **Idempotency is "reuse the open PR."** A re-run for a topic with an open PR
+  reuses that PR (no duplicate) and pushes the same branch fast-forward (never a
+  force-push, so Guard's force-push rule can't fire). Full file-refresh-on-rerun
+  from the prior branch is deferred.
+
+**Open questions still open:**
+
+- **Cache downloaded PDFs, or cite metadata only?** Metadata-only for v0 — no
+  binary blobs in the repo; a human runs graphify ingest over the cited sources
+  out of band if they want MyKnowledger to answer from them later.
 - **`plan` vs. my-planner overlap.** The seam is corpus, not shape (external
   study topics vs. the fleet build backlog) and the ledger `kind`s differ; if a
   third "order-a-set" caller appears, promote a shared helper to core rather than
   coupling the two tools.
-- **Confirm `kind=research` / `kind=study_plan`** don't collide with an existing
-  ledger `kind` before implementation.
+- **A `github.GitHub.get_issue(number)` core method** would replace the current
+  `gh issue view` shell-out for fetching a topic issue's title/body — worth
+  batching into the next confirmed core-contract addition rather than adding
+  reactively now.
