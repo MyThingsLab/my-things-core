@@ -1,5 +1,13 @@
 # MyOrchestrator — design plan
 
+> **Historical.** This is the pre-build design plan, frozen as of my-orchestrator's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-orchestrator/README.md`](../../../my-orchestrator/README.md) and
+> [`my-orchestrator/CLAUDE.md`](../../../my-orchestrator/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 **Build this first**, ahead of MyTester. Every other tool in this batch
 assumes GitHub Actions' `schedule:`/event triggers are "the conductor"
 (per [`ARCHITECTURE.md`](../ARCHITECTURE.md)) — but that's only true once a
