@@ -1,4 +1,4 @@
-from mythings.engine import Engine, EngineRequest, EngineResult, NoopEngine
+from mythings.engine import ClaudeCLIEngine, Engine, EngineRequest, EngineResult, NoopEngine
 from mythings.github import CIStatus, GitHub, GitHubError, Issue, PullRequest
 from mythings.isolation import Workspace, in_github_actions
 from mythings.ledger import Ledger, LedgerEntry
@@ -10,6 +10,7 @@ __all__ = [
     "ALLOW",
     "Action",
     "CIStatus",
+    "ClaudeCLIEngine",
     "Decision",
     "Engine",
     "EngineRequest",
