@@ -21,7 +21,7 @@ The reference implementation of this pattern hard-coded everything to one repo.
 derived from the target repo at run time, the backlog is any GitHub project, and
 the model backend is swappable behind one interface.
 
-## The four contracts
+## The five contracts
 
 ### `ledger` — shared memory
 
