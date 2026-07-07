@@ -35,9 +35,24 @@ tool invariants, and the backlog label. Starting a new tool = filling those.
 | PR, never merge | `harness.md` | branch protection (PR required) + App perms + MyGuard |
 | Provenance per session | `PROVENANCE.md` | (deferred) `Stop` hook |
 | CI hygiene / Linux-only | `harness.md` | the `ci.yml` itself |
+| Coverage reported | this doc | `pytest --cov` in `ci.yml` → Codecov upload + README badge |
 | All-public / no surprise bill | this doc | org default visibility + $0 spending limit |
 | Isolated from other ventures | `harness.md` | org placement (`MyThingsLab`) |
 | Harness rules stay in sync | this doc | drift-check test (`HARNESS.md` == canonical) |
+
+## Coverage & badges
+
+Every repo's `ci.yml` runs `pytest --cov=<pkg> --cov-report=xml` and uploads the
+result with `codecov/codecov-action@v4` (`token: ${{ secrets.CODECOV_TOKEN }}`,
+`slug: ${{ github.repository }}`). The upload **soft-fails** — `fail_ci_if_error`
+defaults false — so a repo without Codecov wired up still gets a green build.
+
+Each README carries a fixed badge row under the H1: **CI · Codecov · Python
+3.11+ · MIT**. `my-template` ships all of this, so a new tool inherits it with
+the `<pkg>` rename. The only manual step is one-time and owner-only: add the
+repo on codecov.io and set the secret —
+`gh secret set CODECOV_TOKEN -R MyThingsLab/<repo>`. A token is **never**
+committed.
 
 ## The CLAUDE.md hierarchy
 

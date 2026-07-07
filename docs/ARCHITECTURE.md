@@ -60,6 +60,18 @@ tool's existing "summarize degrades gracefully" handling covers it without
 tool-side changes. Other backends (a hosted API, a local model) can still be
 added later, chosen cheapest-capable-first.
 
+"Cheapest-capable-first" has a concrete knob: `ClaudeCLIEngine(model=...)`
+passes `--model` to the CLI, so a narrow, classification-shaped call (an
+orchestrator tie-break, a report summarize) can run on a cheaper model than a
+call that writes real code. A tool exposes this as an optional `--engine-model`
+flag flowing through a small `build_engine(name, *, model)` factory in its own
+CLI — the factory stays a per-tool ~5-line snippet rather than a core export,
+so this SDK keeps its dependency-free, contracts-only public API. The flag
+defaults to unset (the CLI's own default model), so wiring it in never changes
+behavior; picking an actual cheap default for a given tool is that tool's
+separate, opt-in decision, never applied to a safety-critical call (e.g.
+`MyGuard`'s allow/ask/deny fall-through) by default.
+
 ### `github` — the substrate adapter
 
 A thin wrapper over the `gh` CLI: list issues, open a PR, read a PR's CI status.
