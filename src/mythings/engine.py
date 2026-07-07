@@ -46,7 +46,7 @@ def _claude(argv: list[str]) -> str:
 class ClaudeCLIEngine:
     # Shells out to the Claude Code CLI in headless print mode instead of an
     # SDK: no new dependency, and it reuses whatever `claude` auth is already
-    # configured on the machine. Tools are disabled (--tools "") — this seam
+    # configured on the machine. Tools are disabled (--tools=) — this seam
     # returns judgment only, never a side effect; those stay behind Policy.
     # Never raises: a CLI failure or unparsable reply degrades to
     # EngineResult(text="", ...), same contract shape as NoopEngine's empty
@@ -57,7 +57,13 @@ class ClaudeCLIEngine:
         self._run = runner
 
     def run(self, request: EngineRequest) -> EngineResult:
-        argv = ["-p", "--output-format", "json", "--tools", ""]
+        # --tools as two argv tokens ("--tools", "") makes the CLI's variadic
+        # tools-list parser keep consuming the next token too when nothing
+        # else with a leading "-" follows (e.g. no --system-prompt) — it
+        # swallows the positional prompt itself. A single "--tools=" token
+        # disables tools without that ambiguity, verified against the real
+        # CLI (2.1.202).
+        argv = ["-p", "--output-format", "json", "--tools="]
         if request.system:
             argv += ["--system-prompt", request.system]
         if self._model:
