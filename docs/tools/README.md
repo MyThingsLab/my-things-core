@@ -33,6 +33,8 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyDescriber | writes/improves a PR's title + description after it's opened | "write a PR title + description for this diff" | [my-describer.md](my-describer.md) |
 | MyProjector | keeps the fleet's GitHub Project board + tracking issues synced to live repo state | optional: "rewrite this card's last/next-step summary" | [my-projector.md](my-projector.md) |
 | MyPlanner | produces a priority-ordered, multi-item plan across the whole backlog | required: "propose a sequence, with rationale" | [my-planner.md](my-planner.md) |
+| MySite | drafts content/design changes for a personal Jekyll site (default: `lorenzoliuzzo/lorenzoliuzzo.github.io`) | "draft the Jekyll content for this request" | [my-site.md](my-site.md) |
+| MyDocs | keeps the fleet's technical-docs site (`mythingslab.github.io`) in sync with each tool's README/CLAUDE.md | "write/update this tool's docs page from its README + seams" | [my-docs.md](my-docs.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
@@ -109,6 +111,18 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
     (already shipped, so buildable now) and soft-depends on MyProjector
     (degrades gracefully if built first). Build after MyProjector if
     sequencing by convenience; not blocked on it either way.
+17. **MySite** — added 2026-07-08, proposed by the user directly (a
+    recurring content/design tool for their personal site, distinct from
+    ordinary fleet feature work). Zero dependency on any other `My[X]`
+    tool — no new core method needed (`github.open_pr` and `isolation.
+    Workspace` already cover its one side effect). Standalone; build any
+    time.
+18. **MyDocs** — added 2026-07-08 alongside MySite, same session. Depends
+    only on other `My[X]` tools already existing to have something to
+    document and on `mythingslab.github.io`'s genesis content existing to
+    write into — not on MySite (different target repo, no shared code).
+    Build after at least a couple of tools have shipped READMEs worth
+    publishing.
 
 ## Cross-cutting notes
 
@@ -214,6 +228,18 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   which is a stronger signal than either doc alone that it belongs in core
   sooner rather than later — still a confirm-before-implementing change,
   not decided by accretion.
+- **MySite is the fleet's first tool whose target repo lives outside the
+  MyThingsLab org.** Every tool's target repo has always been configurable
+  at run time per `ARCHITECTURE.md`; MySite is the first to actually point
+  it at a personal repo (`lorenzoliuzzo/lorenzoliuzzo.github.io`) rather
+  than a fleet repo. No new capability is needed for this — it's confirmed
+  proof the existing design already generalizes past the org boundary.
+- **MySite and MyDocs are both content-publishing tools with no shared
+  code.** They look superficially similar (draft Jekyll content, open a
+  PR) but point at different corpora (a free-form content request vs. a
+  tool's own README/CLAUDE.md) and different destinations (a personal site
+  vs. the fleet's docs site) — same "don't couple two tools over a
+  surface-level shape match" discipline as MyWiki vs. MyKnowledger.
 - **Decision authority across MyOrchestrator / MyPlanner / MyProjector —
   resolved 2026-07-07.** Adding two more fleet-wide tools risked three
   sources of truth disagreeing about "what happens next." The line:
