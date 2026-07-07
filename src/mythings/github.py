@@ -107,8 +107,23 @@ class GitHub:
         rollup = json.loads(self._run(self._argv(argv))).get("statusCheckRollup") or []
         return _rollup_status(rollup)
 
+    def create_issue(self, *, title: str, body: str) -> Issue:
+        argv = ["issue", "create", "--title", title, "--body", body]
+        url = self._run(self._argv(argv)).strip().splitlines()[-1]
+        return Issue(number=_issue_number(url), title=title, body=body, url=url)
+
+    def add_labels(self, number: int, labels: list[str]) -> None:
+        argv = ["issue", "edit", str(number)]
+        for label in labels:
+            argv += ["--add-label", label]
+        self._run(self._argv(argv))
+
 
 def _pr_number(url: str) -> int:
+    return int(url.rstrip("/").rsplit("/", 1)[-1])
+
+
+def _issue_number(url: str) -> int:
     return int(url.rstrip("/").rsplit("/", 1)[-1])
 
 
