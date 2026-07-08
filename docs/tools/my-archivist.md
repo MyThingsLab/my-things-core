@@ -28,20 +28,26 @@ is worth adding later).
 
 ## The single Engine call (optional)
 
-Required for exactly one step; everything else is deterministic metadata
-lookup.
+One batched call per run — not one per entry — over every entry still
+missing a subject after deterministic lookup; everything else is
+deterministic metadata lookup.
 
-"Given this book's title/author/description, assign it to one subject/genre
-tag and write a one-line blurb" — used only for entries where deterministic
-metadata (see pre-work) didn't already carry a subject/genre.
+"For each numbered book below (title/author), assign one subject/genre tag
+and write a one-line blurb" — only entries where deterministic metadata
+(see pre-work) didn't already carry a subject/genre are sent; if none are
+pending, the Engine call is skipped entirely (same short-circuit as
+MyResearcher's `plan` mode with under 2 topics).
 
-- **Input:** the entry's `title`, `author`, `description`/back-cover text if
-  available. `context = {"catalog_entry_id": id}`.
-- **Output:** `data = {"tag": str, "blurb": str}` — one tag from a small
-  fixed vocabulary (fiction/non-fiction/technical/reference/other, same
-  closed-set discipline as MyGroomer's labels) plus a one-line blurb; the
-  model may not invent bibliographic facts (title/author/ISBN are already
-  fixed by deterministic lookup, never Engine-supplied).
+- **Input:** the pending entries as a numbered list (`id`, `title`,
+  `author`). `context = {"pending_count": k}`.
+- **Output:** `data = {"tags": [{"id": int, "tag": str, "blurb": str}, ...]}`
+  — one tag from a small fixed vocabulary
+  (fiction/non-fiction/technical/reference/other, same closed-set discipline
+  as MyGroomer's labels) plus a one-line blurb per entry, referencing only
+  the given numeric `id`s — never an invented one (same permutation-only
+  discipline as MySearcher's reorder rule). The model may not invent
+  bibliographic facts (title/author/ISBN are already fixed by deterministic
+  lookup, never Engine-supplied).
 - Against `NoopEngine`: `tag="unsorted"`, no blurb — the entry still gets
   cataloged, just without enrichment, same honest degrade as every other
   tool's `NoopEngine` path.
