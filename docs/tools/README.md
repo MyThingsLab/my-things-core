@@ -28,6 +28,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyResearcher | discovers external sources live (web + arXiv), writes a cited study brief; orders topics into a study path | "write a study brief from these discovered sources" / "order these researched topics" | [my-researcher.md](my-researcher.md) |
 | MyAdvisor | recommends a course of action with trade-offs | "recommend an answer, with trade-offs" | [my-advisor.md](my-advisor.md) |
 | MyChangelogger | turns ship/fix ledger entries into a CHANGELOG.md section | none | [my-changelogger.md](my-changelogger.md) |
+| MyTodo | curates a TODO.md (per-repo or org-wide roll-up) from open issues + MyPlanner's plan | optional: "prioritise issues into Now/Next/Later" | [my-todo.md](my-todo.md) |
 | MyDriftWatcher | flags cross-repo convention drift | none | [my-drift-watcher.md](my-drift-watcher.md) |
 | MyGrapher | keeps a repo's knowledge graph fresh for other tools to query | none | [my-grapher.md](my-grapher.md) |
 | MyDescriber | writes/improves a PR's title + description after it's opened | "write a PR title + description for this diff" | [my-describer.md](my-describer.md) |
