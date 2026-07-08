@@ -94,10 +94,10 @@ tools' retrieval logic existing first.
 - **Cross-tool reuse mechanism isn't settled.** MyAdvisor wanting
   MyWiki's and MySearcher's shortlist logic raises a real question:
   do `My[X]` tools depend on each other as installed packages (like
-  `my-guard` depends on `mythings-core`), or should shared retrieval
-  helpers get promoted into `mythings-core` once two or more tools need
+  `my-guard` depends on `my-things-core`), or should shared retrieval
+  helpers get promoted into `my-things-core` once two or more tools need
   the same logic? The latter keeps tools independent per the harness's
-  design (`mythings-core` is the only shared dependency); the former
+  design (`my-things-core` is the only shared dependency); the former
   couples tool repos to each other. Recommend promoting to core once
   duplication is confirmed (i.e. after MyWiki and MySearcher both
   ship) rather than deciding speculatively now.

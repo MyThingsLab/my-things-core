@@ -6,7 +6,7 @@ Keeps `MyThingsLab/mythingslab.github.io` — the fleet's technical
 documentation site — in sync with the fleet itself: one docs page per
 `My[X]` tool, refreshed from that tool's `README.md` and `CLAUDE.md` filled
 seams whenever they change, plus an architecture overview page sourced from
-`mythings-core/docs/`. Package `mydocs`, backlog label `my-docs` (consumed
+`my-things-core/docs/`. Package `mydocs`, backlog label `my-docs` (consumed
 from a workspace-level tracking issue — there is no single per-run target
 repo the way most tools have one; the *source* is every `MyThingsLab` repo,
 the *destination* is always `mythingslab.github.io`).
@@ -39,10 +39,10 @@ CLAUDE.md seams, matching the style of an existing docs-site page."
 
 1. Enumerate `MyThingsLab` org repos (`gh repo list MyThingsLab`), excluding
    the docs site itself and any repo without a `CLAUDE.md` (i.e. not a
-   `My[X]` tool — `mythings-core`, `mythingslab.github.io`, `fleet-dispatch`
+   `My[X]` tool — `my-things-core`, `mythingslab.github.io`, `fleet-dispatch`
    get their own non-per-tool pages, not this loop). There is no existing
    core helper for this enumeration; MyDocs owns it directly for now — a
-   candidate to promote into `mythings-core.github` only if a third tool
+   candidate to promote into `my-things-core.github` only if a third tool
    needs the same "list every fleet repo" step (see Open questions).
 2. For each tool repo, fetch `README.md` + `CLAUDE.md`, hash both, and
    compare against the hash recorded in that tool's last `kind=docs_sync`
@@ -121,10 +121,10 @@ real tools exist yet. Standalone build, any time after
   PRs once several tools change at once, split to one PR per tool instead —
   not decided here, revisit once real usage shows which is more annoying.
 - **Repo-enumeration helper.** `gh repo list MyThingsLab` lives directly in
-  `mydocs` for now; promote to a `mythings-core` helper only if a second
+  `mydocs` for now; promote to a `my-things-core` helper only if a second
   tool independently needs "list every fleet repo" (same premature-
   abstraction discipline the README's cross-cutting notes apply elsewhere).
-- **Non-tool pages** (`mythings-core`'s architecture overview,
+- **Non-tool pages** (`my-things-core`'s architecture overview,
   `fleet-dispatch`'s own page) are out of scope for MyDocs' per-tool loop;
   whether they're hand-maintained genesis content or a second, smaller sync
   path is deferred until the site's genesis content settles.

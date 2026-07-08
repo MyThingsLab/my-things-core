@@ -8,7 +8,7 @@ enforces.
 
 ## Two layers, mirrored from runtime
 
-MyThingsLab's runtime has an abstract vocabulary (`mythings-core` contracts) and
+MyThingsLab's runtime has an abstract vocabulary (`my-things-core` contracts) and
 an enforcer (`MyGuard`). The *build* harness has the same two layers one level up:
 
 - **Advisory** — CLAUDE.md hierarchy + this doc + `harness.md`. States intent.
@@ -76,7 +76,7 @@ with a drift-check test failing CI if the copy goes stale.
    see its README for the exact rename. `my-template` mirrors
    [`CLAUDE.template.md`](CLAUDE.template.md) as its `CLAUDE.md`.
 2. Fill the four seams in the copied `CLAUDE.md`.
-3. `pip install -e ../mythings-core -e ".[dev]" && pre-commit install`.
+3. `pip install -e ../my-things-core -e ".[dev]" && pre-commit install`.
 4. Red → green → refactor locally; open a PR; let CI gate it.
 
 ## `docs/tools/<name>.md` goes historical at first ship

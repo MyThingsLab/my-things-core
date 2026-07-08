@@ -70,7 +70,7 @@ is buildable *now*, not blocked on Phase 1 landing.
    sixth tool wanting "shortlist from a corpus, then cite" (MyWiki,
    MySearcher, MyAdvisor, MyDescriber, MyKnowledger were already five per
    README.md's cross-cutting note; strengthens the case for promoting this
-   into `mythings-core` rather than leaving it duplicated six times over).
+   into `my-things-core` rather than leaving it duplicated six times over).
 5. Always call the Engine, even on an empty/small backlog (mirrors
    MyAdvisor's step 5) — pacing judgment ("things look calm, no plan
    changes needed") is still a judgment worth recording, not a skip

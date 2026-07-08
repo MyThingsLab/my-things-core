@@ -16,7 +16,7 @@ Distinct from its neighbours:
   a standing one — "in what order do these N open PRs merge?" — recomputed from
   live PR state each run.
 
-It is the tool that would have said "merge `mythings-core#29` before
+It is the tool that would have said "merge `my-things-core#29` before
 `my-projector#1`" up front, instead of that surfacing as a red CI.
 
 ## The single Engine call
@@ -54,7 +54,7 @@ reads as a coherent story, within the given dependency constraints."
    - **Same-repo stack** — a PR whose base branch is another open PR's head.
    - **Cross-repo import** — a consumer PR that adds a
      `from mythings.<mod> import <Name>` whose `<Name>` is added by an open
-     `mythings-core` PR's diff (best-effort; this is the `#29 → my-projector#1`
+     `my-things-core` PR's diff (best-effort; this is the `#29 → my-projector#1`
      edge, detected automatically).
 4. Detect cycles → **flag them** and do not ask the Engine to linearize an
    impossible graph (surface as a blocker).
@@ -103,7 +103,7 @@ myconductor order --comment   # also posts the order to the tracking issue
 Depends on core `ledger`, `github`, `policy`. **Third caller of the "order/select
 a set with one Engine call + deterministic fallback" shape** (after my-planner
 and MyOrchestrator's tie-break) — the ≥3-caller trigger the design docs set for
-promoting a shared **ordered-selection helper** into `mythings-core`. Build the
+promoting a shared **ordered-selection helper** into `my-things-core`. Build the
 helper first (see cross-cutting note in [README.md](README.md)), then MyConductor
 is thin on top of it. Independent of the other unbuilt tools.
 
