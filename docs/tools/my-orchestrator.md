@@ -131,7 +131,7 @@ rather than one decided ad hoc in conversation.
   explicit `--repos` flag like MyWiki/MyReporter) before building, since it
   changes what "unattended" means for this tool specifically (it needs
   read access across every repo under the org, not just its own).
-- Whether "next up" should be a single pinned issue in `mythings-core`, or
+- Whether "next up" should be a single pinned issue in `my-things-core`, or
   a dedicated ops-only repo — a smaller version of the
   single-repo-vs-monorepo question already settled for tools in general,
   but this tool isn't really a tool, so the same answer may not apply.

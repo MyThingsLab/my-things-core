@@ -50,7 +50,7 @@ Optional, same shape as MyReporter's `--summarize`.
    "ask before overriding a human decision" spirit, applied to board state.
 5. Detect drift: a card whose linked content type changed unexpectedly
    (e.g. a `DraftIssue` card that's now backed by a real `Issue` — this
-   *actually happened* to the `mythings-core` card mid-session, cause not
+   *actually happened* to the `my-things-core` card mid-session, cause not
    fully diagnosed, see Open questions). Flag it, don't silently fix it —
    converting a real issue back to a draft is delete-and-recreate, not a
    safe automatic action.
@@ -112,7 +112,7 @@ myprojector sync --apply-checklist   # separate flag: the ASK-tier issue-edit pa
 
 ## Dependencies & build order
 
-Needs a genuinely new core capability: `mythings-core` currently wraps the
+Needs a genuinely new core capability: `my-things-core` currently wraps the
 `gh` CLI's REST-ish surface (issues, PRs, CI status) — GitHub's Projects
 (v2) API is GraphQL-only and was hand-rolled this session via raw `gh api
 graphql` calls (confirmed: no `createProjectV2View`/`updateProjectV2View`

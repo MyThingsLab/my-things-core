@@ -93,10 +93,10 @@ Independent of every other `My[X]` tool.
 **Open questions:**
 
 - **How MyPresentation calls MyTypster.** As an installed package
-  dependency (like `my-guard` depends on `mythings-core`) vs. shelling
+  dependency (like `my-guard` depends on `my-things-core`) vs. shelling
   out to MyTypster's own CLI (`mytypster draft --kind presentation
   --from-json ...`) vs. promoting the render-and-compile step to
-  `mythings-core` since it's the second consumer. Leaning toward the CLI
+  `my-things-core` since it's the second consumer. Leaning toward the CLI
   hand-off — it keeps the two tool repos decoupled at the code level,
   matching the harness's "only shared dependency is core" property — but
   not decided here; confirm before either tool's build starts, per the

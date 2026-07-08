@@ -78,7 +78,7 @@ mywiki ask --issue <number> [--repos core,my-guard,...]
 
 Depends on core `ledger`, `github`, `policy`. Shares its ledger-merging
 logic with MyReporter (step 2) — build after MyReporter and consider
-whether that merge routine belongs in `mythings-core` once two tools need
+whether that merge routine belongs in `my-things-core` once two tools need
 it independently (a "promote to core once duplicated" rule worth adopting
 generally, see the cross-cutting note in the README). Independent of
 MySearcher/MyGrapher for v0 (keyword match is sufficient); designed so a

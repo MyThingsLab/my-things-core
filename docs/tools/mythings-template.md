@@ -30,7 +30,7 @@ scaffold list, as inert placeholders — nothing here is ever deployed from
 this repo directly:
 
 - `pyproject.toml` — package name as a literal `my-x` placeholder,
-  `mythings-core` as a dependency, the shared ruff config (E/F/I/UP/B,
+  `my-things-core` as a dependency, the shared ruff config (E/F/I/UP/B,
   line-length 100).
 - `ci.yml` — the canonical hardened workflow: `concurrency:
   cancel-in-progress`, `paths-ignore` for docs/dev-ledger, draft-PR skip,
@@ -38,7 +38,7 @@ this repo directly:
 - `.gitignore`, `LICENSE`, `.pre-commit-config.yaml` (ruff +
   `pytest -m "not slow"`).
 - `dev-ledger/` — empty, with a `.gitkeep`.
-- `HARNESS.md` — vendored byte-for-byte from `mythings-core`'s canonical
+- `HARNESS.md` — vendored byte-for-byte from `my-things-core`'s canonical
   `src/mythings/harness.md`, so a tool scaffolded from this template passes
   its own drift-check test on the very first commit.
 - `tests/test_harness_drift.py` — the drift-check test itself, copied
@@ -62,7 +62,7 @@ can be minimal (just the drift-check test, trivially passing against
 itself) or omitted entirely, since nothing is ever merged *into* main here
 except scaffold updates.
 
-Changes to the canonical `HARNESS.md` in `mythings-core` still propagate
+Changes to the canonical `HARNESS.md` in `my-things-core` still propagate
 the same way as today (re-vendor into every tool's `HARNESS.md`) — this
 template repo needs its own copy re-vendored too, as one more instance of
 the drift-check-covered set.
