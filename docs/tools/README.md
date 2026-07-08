@@ -26,6 +26,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyWiki | answers "what happened / why" from *this project's own* ledger history | "answer this question using only these ledger excerpts" | [my-wiki.md](my-wiki.md) |
 | MyKnowledger | answers domain questions from *external* literature (papers/books/web) | "answer this question using only these knowledge-graph excerpts" | [my-knowledger.md](my-knowledger.md) |
 | MyResearcher | discovers external sources live (web + arXiv), writes a cited study brief; orders topics into a study path | "write a study brief from these discovered sources" / "order these researched topics" | [my-researcher.md](my-researcher.md) |
+| MyLibrarian | discovers existing community libraries/CLIs for a task (PyPI/npm/GitHub) and recommends build-vs-buy | "recommend which discovered packages to use, with trade-offs" | [my-librarian.md](my-librarian.md) |
 | MyAdvisor | recommends a course of action with trade-offs | "recommend an answer, with trade-offs" | [my-advisor.md](my-advisor.md) |
 | MyChangelogger | turns ship/fix ledger entries into a CHANGELOG.md section | none | [my-changelogger.md](my-changelogger.md) |
 | MyTodo | curates a TODO.md (per-repo or org-wide roll-up) from open issues + MyPlanner's plan | optional: "prioritise issues into Now/Next/Later" | [my-todo.md](my-todo.md) |
@@ -280,6 +281,14 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   tool's own README/CLAUDE.md) and different destinations (a personal site
   vs. the fleet's docs site) — same "don't couple two tools over a
   surface-level shape match" discipline as MyWiki vs. MyKnowledger.
+- **MyLibrarian, MyResearcher, and MyAdvisor all "discover/retrieve, then
+  judge," but over three disjoint corpora and outputs.** MyResearcher
+  discovers literature to *learn from* (a study brief); MyLibrarian
+  discovers packages to *depend on* (a build-vs-buy recommendation);
+  MyAdvisor judges a decision grounded in *this project's own* history.
+  No two ever answer the same question, so none absorbs another — same
+  "confirm the corpus/output differ before folding one in" check that
+  caught my-designer/my-fact-check as duplicates of MyAdvisor/MyKnowledger.
 - **Decision authority across MyOrchestrator / MyPlanner / MyProjector —
   resolved 2026-07-07.** Adding two more fleet-wide tools risked three
   sources of truth disagreeing about "what happens next." The line:
