@@ -21,8 +21,9 @@ The design rule: **never ship an advisory rule without a gate behind it.**
 
 Shared (never re-authored): the five contracts, these conventions, the CI
 workflow, the provenance ritual, org/visibility placement, and the base agent
-instructions. Per tool, only four seams vary — name, the single Engine call,
-tool invariants, and the backlog label. Starting a new tool = filling those.
+instructions. Per tool, only five seams vary — name, the single Engine call,
+tool invariants, the backlog label, and how to verify it end-to-end. Starting a
+new tool = filling those.
 
 ## Rule → gate
 
@@ -78,7 +79,8 @@ just report drift, exit 1 if any copy is stale).
    the drift-check test) to `../my-<x>` and replace the `template` placeholder —
    see its README for the exact rename. `my-template` mirrors
    [`CLAUDE.template.md`](CLAUDE.template.md) as its `CLAUDE.md`.
-2. Fill the four seams in the copied `CLAUDE.md`.
+2. Fill the five seams in the copied `CLAUDE.md` (a seam-check test in the
+   scaffold fails CI while any is left unfilled after the rename).
 3. `pip install -e ../my-things-core -e ".[dev]" && pre-commit install`.
 4. Red → green → refactor locally; open a PR; let CI gate it.
 
