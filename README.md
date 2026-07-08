@@ -18,7 +18,7 @@ the interface.
 |---|---|---|
 | `mythings.ledger` | Append-only JSONL run history — the shared memory every tool writes to and reads back. | implemented |
 | `mythings.policy` | `Decision` (allow/ask/deny) + `Action` types that `MyGuard` evaluates against. | implemented |
-| `mythings.engine` | The `Engine` protocol — the *one* seam where an LLM is called. Implementations arrive in a later phase. | interface only |
+| `mythings.engine` | The `Engine` protocol — the *one* seam where an LLM is called. `NoopEngine` (deterministic default) and `ClaudeCLIEngine` (shells out to `claude -p`) both ship here. | implemented |
 | `mythings.github` | Thin `gh`-CLI adapter for issues, PRs, and CI status. GitHub is the execution substrate, not an abstraction. | implemented |
 | `mythings.isolation` | `Workspace` — a git-worktree sandbox, and detection of GitHub Actions (where the runner *is* the sandbox). | implemented |
 
