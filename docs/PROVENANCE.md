@@ -67,5 +67,5 @@ python -m mythings._devledger show
 
 `_devledger` is deliberately a private module, not part of the `mythings`
 contract surface — it is build tooling, available to every repo that installs
-`mythings-core`. Automating the mechanical linkage (a `Stop` hook that stamps
+`my-things-core`. Automating the mechanical linkage (a `Stop` hook that stamps
 commit shas + session id) is a deferred, opt-in step; today the ritual is manual.

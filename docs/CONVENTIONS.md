@@ -8,7 +8,7 @@ enforces.
 
 ## Two layers, mirrored from runtime
 
-MyThingsLab's runtime has an abstract vocabulary (`mythings-core` contracts) and
+MyThingsLab's runtime has an abstract vocabulary (`my-things-core` contracts) and
 an enforcer (`MyGuard`). The *build* harness has the same two layers one level up:
 
 - **Advisory** — CLAUDE.md hierarchy + this doc + `harness.md`. States intent.
@@ -21,8 +21,9 @@ The design rule: **never ship an advisory rule without a gate behind it.**
 
 Shared (never re-authored): the five contracts, these conventions, the CI
 workflow, the provenance ritual, org/visibility placement, and the base agent
-instructions. Per tool, only four seams vary — name, the single Engine call,
-tool invariants, and the backlog label. Starting a new tool = filling those.
+instructions. Per tool, only five seams vary — name, the single Engine call,
+tool invariants, the backlog label, and how to verify it end-to-end. Starting a
+new tool = filling those.
 
 ## Rule → gate
 
@@ -66,7 +67,10 @@ Loaded outermost → innermost:
 
 `@path` imports keep things DRY *within* the workspace but don't resolve for a
 lone clone — hence each tool **vendors** `HARNESS.md` rather than importing it,
-with a drift-check test failing CI if the copy goes stale.
+with a drift-check test failing CI if the copy goes stale. After editing the
+canonical `harness.md`, sweep every sibling checkout in one command instead of
+hand-copying: `python -m mythings._harness <workspace-root>` (add `--check` to
+just report drift, exit 1 if any copy is stale).
 
 ## Starting a new tool
 
@@ -75,8 +79,9 @@ with a drift-check test failing CI if the copy goes stale.
    the drift-check test) to `../my-<x>` and replace the `template` placeholder —
    see its README for the exact rename. `my-template` mirrors
    [`CLAUDE.template.md`](CLAUDE.template.md) as its `CLAUDE.md`.
-2. Fill the four seams in the copied `CLAUDE.md`.
-3. `pip install -e ../mythings-core -e ".[dev]" && pre-commit install`.
+2. Fill the five seams in the copied `CLAUDE.md` (a seam-check test in the
+   scaffold fails CI while any is left unfilled after the rename).
+3. `pip install -e ../my-things-core -e ".[dev]" && pre-commit install`.
 4. Red → green → refactor locally; open a PR; let CI gate it.
 
 ## `docs/tools/<name>.md` goes historical at first ship

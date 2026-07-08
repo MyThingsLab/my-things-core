@@ -239,8 +239,8 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   MyDescriber, MyKnowledger) — a stronger signal than before that this
   shape deserves either a shared core helper or a settled reuse mechanism.
   Two options: `My[X]` tools depend on each other as installed packages
-  (like `my-guard` depends on `mythings-core`), or shared retrieval helpers
-  get promoted into `mythings-core` once duplicated across ≥2 tools.
+  (like `my-guard` depends on `my-things-core`), or shared retrieval helpers
+  get promoted into `my-things-core` once duplicated across ≥2 tools.
   Leaning toward the latter — it keeps the harness's "only shared
   dependency is core" property intact — but putting RAG-specific shape
   into a dependency-free SDK deserves its own discussion; not decided here,
@@ -315,7 +315,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   dependency DAG) and a different verb (merge, not build/pick). It never picks or
   dispatches work and never merges; it recommends an order and narrates it, so it
   doesn't compete with MyOrchestrator/MyPlanner. It's the tool that turns the
-  cross-repo merge ordering we've been doing by hand (e.g. `mythings-core#29`
+  cross-repo merge ordering we've been doing by hand (e.g. `my-things-core#29`
   before `my-projector#1`) into a computed, dependency-safe sequence.
 - **Promote an ordered-selection helper into core — now at three callers.**
   MyPlanner ("propose a sequence"), MyOrchestrator's tie-break ("break a tie
@@ -324,7 +324,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   deterministic constraints, validate the reply is a permutation of the input,
   and fall back to a deterministic order against `NoopEngine`. Three independent
   callers is the threshold this doc set (see the shortlist-then-cite note) for
-  extracting a shared helper into `mythings-core` — e.g. `mythings.selection`
+  extracting a shared helper into `my-things-core` — e.g. `mythings.selection`
   with an `ordered_selection(items, engine, *, constraints, fallback)` that owns
   the prompt/parse/permutation-guard/topological-repair/Noop-fallback plumbing.
   Build it before MyConductor so MyConductor is thin on top of it, and retrofit
@@ -402,4 +402,4 @@ exactly the kind of architectural addition the workspace's
 architectural-change rule says to propose and confirm *before* any
 consuming tool's build starts, not accrete tool-by-tool. Revisit as a
 deliberate design conversation (what would that contract even look like
-in `mythings-core`?) before writing design docs for any of these six.
+in `my-things-core`?) before writing design docs for any of these six.

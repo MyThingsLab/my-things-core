@@ -7,14 +7,14 @@ order* stays in [README.md](README.md)'s "Recommended build order."
 ## Repo layout
 
 **One repo per tool** — confirmed, matching the existing convention
-(`my-guard` is already its own repo). `mythings-core` stays the only
+(`my-guard` is already its own repo). `my-things-core` stays the only
 shared dependency between tools; no monorepo.
 
 ## Steps, per tool
 
 1. **Check for unresolved core-contract additions first.** Several docs
    flag new `github.GitHub` methods they need — see the consolidated list
-   below. Land those in `mythings-core` as their own reviewed PR *before*
+   below. Land those in `my-things-core` as their own reviewed PR *before*
    starting a tool that depends on one; don't add a method reactively
    mid-tool.
 2. **Scaffold from [`mythings-template`](mythings-template.md)** — use
@@ -29,7 +29,7 @@ shared dependency between tools; no monorepo.
    that seam verbatim, "Guard & Workspace" → invariants, "Purpose" header's
    backlog label → backlog label. A design doc already contains everything
    `CLAUDE.md` needs — this step is transcription, not invention.
-4. `pip install -e ../mythings-core -e ".[dev]" && pre-commit install`.
+4. `pip install -e ../my-things-core -e ".[dev]" && pre-commit install`.
 5. **TDD from the doc's "Test plan" section**, in the order given: happy
    path first (Engine reply scripted exactly as the doc's Engine-call
    section describes), then the edge case. Get each red, then green.
@@ -55,7 +55,7 @@ shared dependency between tools; no monorepo.
 
 Five separate docs each flag a new `github.GitHub` method in isolation.
 Consolidated here so they can be reviewed and added as **one batch PR** to
-`mythings-core`, instead of piecemeal as each tool happens to need one:
+`my-things-core`, instead of piecemeal as each tool happens to need one:
 
 | Method | Needed by | Purpose |
 |---|---|---|

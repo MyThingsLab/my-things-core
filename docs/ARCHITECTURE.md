@@ -1,4 +1,4 @@
-# mythings-core — architecture & contracts
+# my-things-core — architecture & contracts
 
 This document is the *why* behind the code. The code carries no docstrings on
 purpose; the contract each module upholds lives here so it can be read in one
@@ -17,7 +17,7 @@ small workers, each of which
 5. appends a structured outcome to a shared ledger so the next run can trust it.
 
 The reference implementation of this pattern hard-coded everything to one repo.
-`mythings-core` keeps the shape and removes the assumptions: the ownership map is
+`my-things-core` keeps the shape and removes the assumptions: the ownership map is
 derived from the target repo at run time, the backlog is any GitHub project, and
 the model backend is swappable behind one interface.
 

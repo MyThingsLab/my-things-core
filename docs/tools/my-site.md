@@ -110,7 +110,7 @@ dependency-free — flagged as an open question). Independent of every other
 
 - **Hand-rolled front-matter parsing vs. a `pyyaml` dependency.** MySite is
   the first tool that needs to *read and write* YAML front matter rather
-  than just consume `mythings-core`'s own YAML-free formats; worth
+  than just consume `my-things-core`'s own YAML-free formats; worth
   confirming whether `pyyaml` is an acceptable new dependency for this one
   tool or whether a minimal `---`-delimited splitter (front matter is
   always flat key/value pairs in this site) is preferred, staying
