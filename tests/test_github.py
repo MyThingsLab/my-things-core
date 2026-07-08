@@ -85,6 +85,10 @@ def test_rollup_status_aggregation() -> None:
     # A StatusContext uses `state` rather than status/conclusion.
     assert _rollup_status([{"state": "SUCCESS"}]) is CIStatus.SUCCESS
     assert _rollup_status([{"state": "PENDING"}]) is CIStatus.PENDING
+    # A failed StatusContext reports either FAILURE or ERROR; both are failures.
+    assert _rollup_status([{"state": "FAILURE"}]) is CIStatus.FAILURE
+    assert _rollup_status([{"state": "ERROR"}]) is CIStatus.FAILURE
+    assert _rollup_status([{"state": "SUCCESS"}, {"state": "ERROR"}]) is CIStatus.FAILURE
 
 
 def test_pr_status_reads_rollup() -> None:

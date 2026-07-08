@@ -30,7 +30,14 @@ class CIStatus(StrEnum):
     FAILURE = "failure"
 
 
-_FAILURE_CONCLUSIONS = {"FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"}
+_FAILURE_CONCLUSIONS = {
+    "FAILURE",
+    "ERROR",
+    "CANCELLED",
+    "TIMED_OUT",
+    "ACTION_REQUIRED",
+    "STARTUP_FAILURE",
+}
 
 
 @dataclass(frozen=True)
@@ -117,7 +124,8 @@ def _rollup_status(rollup: list[dict[str, str]]) -> CIStatus:
         return CIStatus.NONE
     saw_pending = False
     for check in rollup:
-        # CheckRun carries status/conclusion; StatusContext carries state.
+        # CheckRun carries status/conclusion; StatusContext carries state
+        # (both "FAILURE" and "ERROR" states mean the check failed).
         state = check.get("state")
         if state in _FAILURE_CONCLUSIONS or check.get("conclusion") in _FAILURE_CONCLUSIONS:
             return CIStatus.FAILURE
