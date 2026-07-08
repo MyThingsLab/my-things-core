@@ -13,3 +13,5 @@ covered here defers to `HARNESS.md`, then `my-things-core/docs/CONVENTIONS.md`.
   "none — deterministic">
 - **Invariants / rules:** <what must always hold; what this tool may never do>
 - **Backlog label:** <the GitHub issue label it picks up>
+- **Verify:** <the safe command(s) that prove the tool works end-to-end —
+  typically an `--engine noop` dry run — beyond pytest>
