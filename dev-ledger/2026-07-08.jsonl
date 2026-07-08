@@ -1,0 +1,1 @@
+{"data":{"files":"src/mythings/_harness.py,tests/test_harness.py,docs/CONVENTIONS.md","session":"2026-07-08"},"detail":"harness re-vendor CLI (python -m mythings._harness WORKSPACE [--check]) \u2014 turns the hand-copy propagation step into one command with a CI-friendly drift check","kind":"build","outcome":"success","tool":"claude-code","ts":"2026-07-08T18:32:37Z"}

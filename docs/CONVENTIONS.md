@@ -66,7 +66,10 @@ Loaded outermost → innermost:
 
 `@path` imports keep things DRY *within* the workspace but don't resolve for a
 lone clone — hence each tool **vendors** `HARNESS.md` rather than importing it,
-with a drift-check test failing CI if the copy goes stale.
+with a drift-check test failing CI if the copy goes stale. After editing the
+canonical `harness.md`, sweep every sibling checkout in one command instead of
+hand-copying: `python -m mythings._harness <workspace-root>` (add `--check` to
+just report drift, exit 1 if any copy is stale).
 
 ## Starting a new tool
 
