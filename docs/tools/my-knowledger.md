@@ -153,6 +153,6 @@ close together avoids re-deriving that pattern twice.
 - **Five tools now independently reuse a "shortlist from a corpus, then one
   Engine call to cite an answer" shape** (MyWiki, MySearcher's ranking,
   MyAdvisor, MyDescriber, MyKnowledger). Strong enough signal to consider a
-  shared retrieval-and-cite helper in `mythings-core` — though putting
+  shared retrieval-and-cite helper in `my-things-core` — though putting
   RAG-specific shape into a dependency-free SDK deserves its own
   discussion before committing, not decided by accretion here.

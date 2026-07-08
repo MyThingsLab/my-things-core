@@ -89,4 +89,4 @@ future backend for the pre-work index instead of naive token overlap.
   invocation — deferred until a real repo's walk time is measured;
   assume rebuild-every-time for v0 since it's the simplest correct thing.
 - Multi-language identifier extraction beyond Python is best-effort; not
-  blocking for v0 since mythings-core repos are all Python.
+  blocking for v0 since my-things-core repos are all Python.

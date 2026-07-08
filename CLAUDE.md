@@ -1,6 +1,6 @@
-# mythings-core — agent instructions
+# my-things-core — agent instructions
 
-You are developing **mythings-core**, the SDK every MyThingsLab tool imports —
+You are developing **my-things-core**, the SDK every MyThingsLab tool imports —
 **not** a My[X] tool itself. It provides the five contracts (`ledger`, `policy`,
 `engine`, `github`, `isolation`) and build tooling (`_devledger`, `_harness`).
 
