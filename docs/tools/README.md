@@ -45,6 +45,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyConductor | orders the fleet's open PRs into a coherent, dependency-safe merge sequence | "order these PRs into a coherent merge story, within the given constraints" | [my-conductor.md](my-conductor.md) |
 | MySyndicator | applies one change to many repos, one PR each (deterministic fan-out) | none — deterministic | [my-syndicator.md](my-syndicator.md) |
 | MyArchivist | catalogs a personal book/materials collection (physical + digital) into a unified, cross-referenced index | optional: "assign a subject tag + blurb" | [my-archivist.md](my-archivist.md) |
+| MySecurity | scans every repo for leaked secrets (full git history) and vulnerable dependencies, opens a redacted issue | optional: "write a remediation summary from these redacted findings" | [my-security.md](my-security.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
@@ -168,6 +169,13 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
     outside the MyThingsLab org, and the first triggered by a local
     `scan` command rather than an opened issue (`schedule:`-triggered
     MyNews is the closer precedent than issue-driven tools).
+26. **MySecurity** — added 2026-07-08, in response to the "how do we keep
+    secrets out of commits and out of LLMs" question. Shares MyDriftWatcher's
+    advisory ("flags, doesn't fix") stance and its `repo_list`/full-scan-all-
+    repos shape closely enough that building it right after MyDriftWatcher
+    avoids re-deriving that pattern. Not blocked on anything else; the real
+    gate is confirming the `gitleaks` CI toolchain addition (see cross-cutting
+    note below), same category of decision as MyTypster's `typst` addition.
 
 ## Cross-cutting notes
 
@@ -247,8 +255,8 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   MyDescriber, MyKnowledger) — a stronger signal than before that this
   shape deserves either a shared core helper or a settled reuse mechanism.
   Two options: `My[X]` tools depend on each other as installed packages
-  (like `my-guard` depends on `mythings-core`), or shared retrieval helpers
-  get promoted into `mythings-core` once duplicated across ≥2 tools.
+  (like `my-guard` depends on `my-things-core`), or shared retrieval helpers
+  get promoted into `my-things-core` once duplicated across ≥2 tools.
   Leaning toward the latter — it keeps the harness's "only shared
   dependency is core" property intact — but putting RAG-specific shape
   into a dependency-free SDK deserves its own discussion; not decided here,
@@ -338,7 +346,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   dependency DAG) and a different verb (merge, not build/pick). It never picks or
   dispatches work and never merges; it recommends an order and narrates it, so it
   doesn't compete with MyOrchestrator/MyPlanner. It's the tool that turns the
-  cross-repo merge ordering we've been doing by hand (e.g. `mythings-core#29`
+  cross-repo merge ordering we've been doing by hand (e.g. `my-things-core#29`
   before `my-projector#1`) into a computed, dependency-safe sequence.
 - **Promote an ordered-selection helper into core — now at three callers.**
   MyPlanner ("propose a sequence"), MyOrchestrator's tie-break ("break a tie
@@ -347,7 +355,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   deterministic constraints, validate the reply is a permutation of the input,
   and fall back to a deterministic order against `NoopEngine`. Three independent
   callers is the threshold this doc set (see the shortlist-then-cite note) for
-  extracting a shared helper into `mythings-core` — e.g. `mythings.selection`
+  extracting a shared helper into `my-things-core` — e.g. `mythings.selection`
   with an `ordered_selection(items, engine, *, constraints, fallback)` that owns
   the prompt/parse/permutation-guard/topological-repair/Noop-fallback plumbing.
   Build it before MyConductor so MyConductor is thin on top of it, and retrofit
@@ -363,6 +371,20 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   Do this the next time a third tool needs it (or alongside MyConductor, which
   will want the same fixture). This shrinks what MySyndicator ever has to fan
   out to genuinely per-repo files (CI yaml, vendored `HARNESS.md`, banners).
+- **MySecurity is detection-only; "my-secrets" (a secrets store) was
+  considered and rejected.** A tool that persists secrets is a liability the
+  fleet doesn't need to own — GitHub Actions Secrets (already wired per the
+  branch-protection work) already covers CI-time storage, and an external
+  vault is the answer if that ever stops being enough. MySecurity's own doc
+  flags a second new-toolchain-dependency case (`gitleaks` in the CI image,
+  same "confirm before implementing" bar as MyTypster's `typst` addition) and
+  a hard, non-configurable redaction rule: a finding's literal secret value
+  never reaches the ledger, an issue body, or an Engine prompt — only file,
+  line, commit, rule id, and a truncated preview. Nearer-term than the tool
+  itself, the same conversation also flagged a `.claude/settings.json`
+  permission deny-list (blocking `Read`/`Grep` on `.env*`, `*.pem`,
+  `*credentials*`, `*secret*`) as a same-day config change, not something
+  that waits on MySecurity shipping.
 
 ## MyCoder (deferred)
 
@@ -411,4 +433,4 @@ exactly the kind of architectural addition the workspace's
 architectural-change rule says to propose and confirm *before* any
 consuming tool's build starts, not accrete tool-by-tool. Revisit as a
 deliberate design conversation (what would that contract even look like
-in `mythings-core`?) before writing design docs for any of these six.
+in `my-things-core`?) before writing design docs for any of these six.

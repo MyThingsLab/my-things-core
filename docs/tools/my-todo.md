@@ -50,7 +50,7 @@ items or reorders blindly. Same optional-Engine posture as MyReporter's
   issues.**
 - Idempotent: a re-run with no issue changes produces an identical `TODO.md` and is
   recorded `skipped` — no empty PR. Ledger `kind=todo`.
-- Runtime dependency: `mythings-core` only.
+- Runtime dependency: `my-things-core` only.
 
 ## Not in scope (v0)
 
