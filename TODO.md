@@ -24,4 +24,3 @@ _Curated by **my-todo** from open issues._
 - [ ] fleet-dispatch#16 tool-build: build MyDriftWatcher (flag cross-repo convention drift) `tool-build`
 - [ ] fleet-dispatch#17 tool-build: umbrella — remaining designed tools (Grapher/Knowledger/Scaffolder/Advisor/Describer) `tool-build`
 - [ ] my-things-core#37 docs: reconcile mythings-template.md vs the shipped my-template repo `documentation`
-- [ ] my-uni#2 tool-build: implement MyUni v0 (field → curriculum topic issues) `tool-build`
