@@ -26,6 +26,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyWiki | answers "what happened / why" from *this project's own* ledger history | "answer this question using only these ledger excerpts" | [my-wiki.md](my-wiki.md) |
 | MyKnowledger | answers domain questions from *external* literature (papers/books/web) | "answer this question using only these knowledge-graph excerpts" | [my-knowledger.md](my-knowledger.md) |
 | MyResearcher | discovers external sources live (web + arXiv), writes a cited study brief; orders topics into a study path | "write a study brief from these discovered sources" / "order these researched topics" | [my-researcher.md](my-researcher.md) |
+| MyLibrarian | discovers existing community libraries/CLIs for a task (PyPI/npm/GitHub) and recommends build-vs-buy | "recommend which discovered packages to use, with trade-offs" | [my-librarian.md](my-librarian.md) |
 | MyAdvisor | recommends a course of action with trade-offs | "recommend an answer, with trade-offs" | [my-advisor.md](my-advisor.md) |
 | MyChangelogger | turns ship/fix ledger entries into a CHANGELOG.md section | none | [my-changelogger.md](my-changelogger.md) |
 | MyTodo | curates a TODO.md (per-repo or org-wide roll-up) from open issues + MyPlanner's plan | optional: "prioritise issues into Now/Next/Later" | [my-todo.md](my-todo.md) |
@@ -43,6 +44,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyNews | discovers current sources on a schedule and posts a dated digest since the last run | "write a digest from these newly discovered items" | [my-news.md](my-news.md) |
 | MyConductor | orders the fleet's open PRs into a coherent, dependency-safe merge sequence | "order these PRs into a coherent merge story, within the given constraints" | [my-conductor.md](my-conductor.md) |
 | MySyndicator | applies one change to many repos, one PR each (deterministic fan-out) | none — deterministic | [my-syndicator.md](my-syndicator.md) |
+| MyArchivist | catalogs a personal book/materials collection (physical + digital) into a unified, cross-referenced index | optional: "assign a subject tag + blurb" | [my-archivist.md](my-archivist.md) |
 | MySecurity | scans every repo for leaked secrets (full git history) and vulnerable dependencies, opens a redacted issue | optional: "write a remediation summary from these redacted findings" | [my-security.md](my-security.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
@@ -153,7 +155,21 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
     as MyResearcher; build alongside or after it, reusing its
     provider-config pattern. First doc whose primary trigger is a
     `schedule:` cron rather than an opened issue.
-24. **MySecurity** — added 2026-07-08, in response to the "how do we keep
+24. **MyLibrarian** — added 2026-07-08. Independent of every tool above; its
+    stdlib-only PyPI/npm/GitHub retrieval layer directly reuses MyResearcher's
+    pattern (naive tokenizer, size-capped shortlist, cite/permutation-only
+    Engine output), so build it alongside or after MyResearcher rather than
+    from scratch. No dependency on MyAdvisor/MyKnowledger despite the shared
+    "discover, then judge" shape — see the cross-cutting note distinguishing
+    the three.
+25. **MyArchivist** — added 2026-07-08. Independent of every other tool;
+    its ISBN-lookup layer shares MyResearcher's/MyLibrarian's stdlib-only
+    HTTP retrieval pattern, so build it alongside or after either rather
+    than from scratch. Second tool (after MySite) whose target repo lives
+    outside the MyThingsLab org, and the first triggered by a local
+    `scan` command rather than an opened issue (`schedule:`-triggered
+    MyNews is the closer precedent than issue-driven tools).
+26. **MySecurity** — added 2026-07-08, in response to the "how do we keep
     secrets out of commits and out of LLMs" question. Shares MyDriftWatcher's
     advisory ("flags, doesn't fix") stance and its `repo_list`/full-scan-all-
     repos shape closely enough that building it right after MyDriftWatcher
@@ -288,6 +304,21 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   tool's own README/CLAUDE.md) and different destinations (a personal site
   vs. the fleet's docs site) — same "don't couple two tools over a
   surface-level shape match" discipline as MyWiki vs. MyKnowledger.
+- **MyLibrarian, MyResearcher, and MyAdvisor all "discover/retrieve, then
+  judge," but over three disjoint corpora and outputs.** MyResearcher
+  discovers literature to *learn from* (a study brief); MyLibrarian
+  discovers packages to *depend on* (a build-vs-buy recommendation);
+  MyAdvisor judges a decision grounded in *this project's own* history.
+  No two ever answer the same question, so none absorbs another — same
+  "confirm the corpus/output differ before folding one in" check that
+  caught my-designer/my-fact-check as duplicates of MyAdvisor/MyKnowledger.
+- **MyArchivist and MyLibrarian share only an English word, not a shape.**
+  MyLibrarian recommends software packages to depend on; MyArchivist
+  catalogs a human's own books/materials collection. No shared corpus,
+  output, or code — flagged here purely because the naming collision (both
+  read as "library" tools) is likely to cause confusion in conversation,
+  not because the tools compete for the same job, unlike the my-designer/
+  my-fact-check cases above.
 - **Decision authority across MyOrchestrator / MyPlanner / MyProjector —
   resolved 2026-07-07.** Adding two more fleet-wide tools risked three
   sources of truth disagreeing about "what happens next." The line:
