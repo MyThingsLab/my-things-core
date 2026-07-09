@@ -1,3 +1,15 @@
+---
+tool: MyTester
+repo: my-tester
+package: mytester
+status: shipped
+added: 2026-07-05
+backlog_label: my-tester
+engine_call: write a test for this one uncovered unit
+ledger_kinds: [run]
+depends_on: []
+---
+
 # MyTester — design plan
 
 > **Historical.** This is the pre-build design plan, frozen as of my-tester's

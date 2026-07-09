@@ -1,3 +1,15 @@
+---
+tool: MyGrapher
+repo: my-grapher
+package: mygrapher
+status: designed
+added: 2026-07-05
+backlog_label: my-grapher
+engine_call: none
+ledger_kinds: [graph]
+depends_on: [tool:my-searcher]
+---
+
 # MyGrapher — design plan
 
 ## Purpose

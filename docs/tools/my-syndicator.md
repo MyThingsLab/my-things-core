@@ -1,3 +1,15 @@
+---
+tool: MySyndicator
+repo: my-syndicator
+package: mysyndicator
+status: designed
+added: 2026-07-08
+backlog_label: my-syndicator
+engine_call: none — deterministic
+ledger_kinds: [syndicate]
+depends_on: []
+---
+
 # MySyndicator — design plan
 
 ## Purpose

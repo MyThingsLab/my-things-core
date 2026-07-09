@@ -1,3 +1,15 @@
+---
+tool: MyConductor
+repo: my-conductor
+package: myconductor
+status: designed
+added: 2026-07-08
+backlog_label: my-conductor
+engine_call: order these PRs into a coherent merge story, within the given constraints
+ledger_kinds: [conduct]
+depends_on: []
+---
+
 # MyConductor — design plan
 
 ## Purpose

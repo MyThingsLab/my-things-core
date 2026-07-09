@@ -1,3 +1,15 @@
+---
+tool: MyProfessor
+repo: my-professor
+package: myprofessor
+status: designed
+added: 2026-07-08
+backlog_label: my-professor
+engine_call: write a lesson / grade this answer
+ledger_kinds: [lesson, grade]
+depends_on: [tool:my-knowledger]
+---
+
 # MyProfessor — design plan
 
 ## Purpose

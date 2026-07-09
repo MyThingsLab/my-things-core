@@ -1,3 +1,15 @@
+---
+tool: MyTodo
+repo: my-todo
+package: mytodo
+status: shipped
+added: 2026-07-08
+backlog_label: my-todo
+engine_call: optional: prioritise issues into Now/Next/Later
+ledger_kinds: [todo]
+depends_on: []
+---
+
 # MyTodo — design plan
 
 > **Historical.** This is the pre-build design plan, frozen as of MyTodo's first

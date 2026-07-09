@@ -1,3 +1,15 @@
+---
+tool: MyOrchestrator
+repo: my-orchestrator
+package: myorchestrator
+status: shipped
+added: 2026-07-05
+backlog_label: my-orchestrator
+engine_call: optional: break a tie among top candidates
+ledger_kinds: [orchestrate]
+depends_on: []
+---
+
 # MyOrchestrator — design plan
 
 > **Historical.** This is the pre-build design plan, frozen as of my-orchestrator's

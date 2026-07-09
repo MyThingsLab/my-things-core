@@ -1,3 +1,15 @@
+---
+tool: MyReviewer
+repo: my-reviewer
+package: myreviewer
+status: designed
+added: 2026-07-05
+backlog_label: my-reviewer
+engine_call: does this diff have a correctness bug?
+ledger_kinds: [review]
+depends_on: [core:diff]
+---
+
 # MyReviewer — design plan
 
 ## Purpose

@@ -1,3 +1,15 @@
+---
+tool: MyChangelogger
+repo: my-changelogger
+package: mychangelogger
+status: shipped
+added: 2026-07-05
+backlog_label: my-changelogger
+engine_call: none
+ledger_kinds: [changelog]
+depends_on: []
+---
+
 # MyChangelogger — design plan
 
 > **Historical.** This is the pre-build design plan, frozen as of my-changelogger's

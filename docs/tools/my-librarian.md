@@ -1,4 +1,25 @@
+---
+tool: MyLibrarian
+repo: my-librarian
+package: mylibrarian
+status: shipped
+added: 2026-07-08
+backlog_label: my-librarian
+engine_call: recommend which discovered packages to use, with trade-offs
+ledger_kinds: [library_survey]
+depends_on: []
+---
+
 # MyLibrarian — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-librarian's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-librarian/README.md`](../../../my-librarian/README.md) and
+> [`my-librarian/CLAUDE.md`](../../../my-librarian/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 ## Purpose
 

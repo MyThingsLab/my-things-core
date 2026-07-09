@@ -1,4 +1,25 @@
+---
+tool: MySearcher
+repo: my-searcher
+package: mysearcher
+status: shipped
+added: 2026-07-05
+backlog_label: my-searcher
+engine_call: rank relevant files for this task
+ledger_kinds: [search]
+depends_on: []
+---
+
 # MySearcher — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-searcher's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-searcher/README.md`](../../../my-searcher/README.md) and
+> [`my-searcher/CLAUDE.md`](../../../my-searcher/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 ## Purpose
 

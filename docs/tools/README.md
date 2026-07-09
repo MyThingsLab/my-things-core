@@ -11,6 +11,17 @@ confirmed — matching the existing `my-guard` convention, no monorepo. New
 tools scaffold from [mythings-template.md](mythings-template.md), a
 dedicated (not-a-tool) template repo — build that before MyScaffolder.
 
+The machine-readable fleet registry is
+[`../../src/mythings/tools_manifest.json`](../../src/mythings/tools_manifest.json)
+— one entry per tool (status, dependencies, Engine call, ledger kinds,
+backlog label), shipped as `mythings` package data so consumers
+(MyOrchestrator's scaffold candidates, MyProjector, dashboards) read it from
+the installed package instead of re-deriving it from this page. Each doc
+below carries a generated frontmatter copy of its entry;
+`python -m mythings._manifest docs/tools` re-syncs the blocks after a
+manifest edit, and CI fails on drift. The table and prose here stay for the
+narrative; the manifest is canonical for status/dependency data.
+
 ## The tools
 
 | Tool | One line | Engine call | Doc |
@@ -51,6 +62,12 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
+
+> **Historical.** This list is the build order as decided in conversation,
+> frozen as the fleet grew — exactly the artifact MyOrchestrator exists to
+> replace with a live, re-computed answer. For the current answer run
+> `myorchestrator next`; for current status/dependency data read
+> `tools_manifest.json` above. Kept for the rationale prose, not the order.
 
 0. **MyOrchestrator** — build before everything below, including MyTester.
    It's the only tool with zero dependency on any other `My[X]` tool, and

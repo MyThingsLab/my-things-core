@@ -1,3 +1,15 @@
+---
+tool: MyGroomer
+repo: my-groomer
+package: mygroomer
+status: designed
+added: 2026-07-05
+backlog_label: my-groomer
+engine_call: split/label this issue
+ledger_kinds: [groom]
+depends_on: [core:list_labels]
+---
+
 # MyGroomer — design plan
 
 ## Purpose

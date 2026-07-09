@@ -1,4 +1,25 @@
+---
+tool: MyDocs
+repo: my-docs
+package: mydocs
+status: shipped
+added: 2026-07-08
+backlog_label: my-docs
+engine_call: write/update this tool's docs page from its README + seams
+ledger_kinds: [docs_sync]
+depends_on: []
+---
+
 # MyDocs — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-docs's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-docs/README.md`](../../../my-docs/README.md) and
+> [`my-docs/CLAUDE.md`](../../../my-docs/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 ## Purpose
 

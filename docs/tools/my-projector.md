@@ -1,4 +1,25 @@
+---
+tool: MyProjector
+repo: my-projector
+package: myprojector
+status: shipped
+added: 2026-07-07
+backlog_label: my-projector
+engine_call: optional: rewrite this card's last/next-step summary
+ledger_kinds: [project-sync]
+depends_on: []
+---
+
 # MyProjector — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-projector's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-projector/README.md`](../../../my-projector/README.md) and
+> [`my-projector/CLAUDE.md`](../../../my-projector/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 **Name tentative** — same status as the `mythings-template` naming question:
 nothing is built yet, so renaming costs nothing. `MyProjector` is used below

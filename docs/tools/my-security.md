@@ -1,3 +1,15 @@
+---
+tool: MySecurity
+repo: my-security
+package: mysecurity
+status: designed
+added: 2026-07-08
+backlog_label: my-security
+engine_call: optional: write a remediation summary from these redacted findings
+ledger_kinds: [security]
+depends_on: [core:repo_list]
+---
+
 # MySecurity — design plan
 
 ## Purpose

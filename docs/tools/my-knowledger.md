@@ -1,3 +1,15 @@
+---
+tool: MyKnowledger
+repo: my-knowledger
+package: myknowledger
+status: designed
+added: 2026-07-05
+backlog_label: my-knowledger
+engine_call: answer this question using only these knowledge-graph excerpts
+ledger_kinds: [knowledge, fact_check]
+depends_on: [tool:my-grapher]
+---
+
 # MyKnowledger — design plan
 
 **Redesigned.** Earlier drafts of this doc described a project-history Q&A

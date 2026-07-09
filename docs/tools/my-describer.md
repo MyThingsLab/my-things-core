@@ -1,3 +1,15 @@
+---
+tool: MyDescriber
+repo: my-describer
+package: mydescriber
+status: designed
+added: 2026-07-05
+backlog_label: my-describer
+engine_call: write a PR title + description for this diff
+ledger_kinds: [describe]
+depends_on: [core:diff, tool:my-reviewer, tool:my-wiki]
+---
+
 # MyDescriber — design plan
 
 ## Purpose

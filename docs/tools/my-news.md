@@ -1,3 +1,15 @@
+---
+tool: MyNews
+repo: my-news
+package: mynews
+status: designed
+added: 2026-07-08
+backlog_label: my-news
+engine_call: write a digest from these newly discovered items
+ledger_kinds: [news_digest]
+depends_on: []
+---
+
 # MyNews — design plan
 
 ## Purpose

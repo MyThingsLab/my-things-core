@@ -1,4 +1,25 @@
+---
+tool: MyPlanner
+repo: my-planner
+package: myplanner
+status: shipped
+added: 2026-07-07
+backlog_label: my-planner
+engine_call: required: propose a sequence, with rationale
+ledger_kinds: [plan]
+depends_on: [tool:my-orchestrator]
+---
+
 # MyPlanner — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-planner's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-planner/README.md`](../../../my-planner/README.md) and
+> [`my-planner/CLAUDE.md`](../../../my-planner/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 **Name tentative**, see [my-projector.md](my-projector.md)'s note — nothing
 built yet, renaming is free.

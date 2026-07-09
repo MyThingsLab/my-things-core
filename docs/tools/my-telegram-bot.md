@@ -1,3 +1,15 @@
+---
+tool: MyTelegramBot
+repo: my-telegram-bot
+package: mytelegrambot
+status: shipped
+added: 2026-07-05
+backlog_label: my-telegram-bot
+engine_call: none
+ledger_kinds: [notify, ask]
+depends_on: []
+---
+
 # MyTelegramBot — design plan
 
 > **Historical.** This is the pre-build design plan, frozen as of my-telegram-bot's

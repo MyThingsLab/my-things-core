@@ -1,4 +1,25 @@
+---
+tool: MySite
+repo: my-site
+package: mysite
+status: shipped
+added: 2026-07-08
+backlog_label: my-site
+engine_call: draft the Jekyll content for this request
+ledger_kinds: [site_change]
+depends_on: []
+---
+
 # MySite — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-site's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-site/README.md`](../../../my-site/README.md) and
+> [`my-site/CLAUDE.md`](../../../my-site/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 ## Purpose
 

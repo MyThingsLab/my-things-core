@@ -1,3 +1,15 @@
+---
+tool: MyReporter
+repo: my-reporter
+package: myreporter
+status: shipped
+added: 2026-07-05
+backlog_label: my-reporter
+engine_call: none (optional prose summary)
+ledger_kinds: [report]
+depends_on: []
+---
+
 # MyReporter — design plan
 
 > **Historical.** This is the pre-build design plan, frozen as of MyReporter's

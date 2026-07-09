@@ -1,3 +1,15 @@
+---
+tool: MyWiki
+repo: my-wiki
+package: mywiki
+status: designed
+added: 2026-07-05
+backlog_label: my-wiki
+engine_call: answer this question using only these ledger excerpts
+ledger_kinds: [wiki]
+depends_on: [tool:my-reporter]
+---
+
 # MyWiki — design plan
 
 Formerly designed under the name "MyKnowledger" — renamed so that name is

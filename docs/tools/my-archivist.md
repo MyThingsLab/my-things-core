@@ -1,4 +1,25 @@
+---
+tool: MyArchivist
+repo: my-archivist
+package: myarchivist
+status: shipped
+added: 2026-07-08
+backlog_label: my-archivist
+engine_call: optional: assign a subject tag + blurb
+ledger_kinds: [catalog]
+depends_on: []
+---
+
 # MyArchivist — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-archivist's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-archivist/README.md`](../../../my-archivist/README.md) and
+> [`my-archivist/CLAUDE.md`](../../../my-archivist/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 ## Purpose
 

@@ -1,3 +1,15 @@
+---
+tool: MyAdvisor
+repo: my-advisor
+package: myadvisor
+status: designed
+added: 2026-07-05
+backlog_label: my-advisor
+engine_call: recommend an answer, with trade-offs
+ledger_kinds: [advise]
+depends_on: [tool:my-wiki, tool:my-searcher]
+---
+
 # MyAdvisor — design plan
 
 **Design now, build meaningfully only with a real Engine backend** (like

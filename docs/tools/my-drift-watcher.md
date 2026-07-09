@@ -1,3 +1,15 @@
+---
+tool: MyDriftWatcher
+repo: my-drift-watcher
+package: mydriftwatcher
+status: designed
+added: 2026-07-05
+backlog_label: my-drift-watcher
+engine_call: none
+ledger_kinds: [drift]
+depends_on: [core:repo_list, core:get_file_contents]
+---
+
 # MyDriftWatcher — design plan
 
 ## Purpose

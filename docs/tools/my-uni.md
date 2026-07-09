@@ -1,4 +1,25 @@
+---
+tool: MyUni
+repo: my-uni
+package: myuni
+status: shipped
+added: 2026-07-08
+backlog_label: my-uni
+engine_call: decompose this field into an ordered curriculum
+ledger_kinds: [curriculum]
+depends_on: []
+---
+
 # MyUni — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-uni's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-uni/README.md`](../../../my-uni/README.md) and
+> [`my-uni/CLAUDE.md`](../../../my-uni/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 ## Purpose
 

@@ -1,0 +1,549 @@
+[
+  {
+    "tool": "MyGuard",
+    "repo": "my-guard",
+    "package": "myguard",
+    "title": "deterministic Policy gate; Engine fires only on rule fall-through",
+    "added": "2026-07-05",
+    "status": "shipped",
+    "backlog_label": "my-guard",
+    "engine_call": "optional: judge an action no deterministic rule matched",
+    "ledger_kinds": [],
+    "depends_on": []
+  },
+  {
+    "tool": "MyOrchestrator",
+    "repo": "my-orchestrator",
+    "package": "myorchestrator",
+    "title": "picks the single next unit of work across the whole fleet",
+    "added": "2026-07-05",
+    "status": "shipped",
+    "backlog_label": "my-orchestrator",
+    "engine_call": "optional: break a tie among top candidates",
+    "ledger_kinds": [
+      "orchestrate"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyTester",
+    "repo": "my-tester",
+    "package": "mytester",
+    "title": "writes a test for one uncovered unit",
+    "added": "2026-07-05",
+    "status": "shipped",
+    "backlog_label": "my-tester",
+    "engine_call": "write a test for this one uncovered unit",
+    "ledger_kinds": [
+      "run"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyReporter",
+    "repo": "my-reporter",
+    "package": "myreporter",
+    "title": "digests Ledger + dev-ledger into a report",
+    "added": "2026-07-05",
+    "status": "shipped",
+    "backlog_label": "my-reporter",
+    "engine_call": "none (optional prose summary)",
+    "ledger_kinds": [
+      "report"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MySearcher",
+    "repo": "my-searcher",
+    "package": "mysearcher",
+    "title": "ranks files relevant to an issue",
+    "added": "2026-07-05",
+    "status": "shipped",
+    "backlog_label": "my-searcher",
+    "engine_call": "rank relevant files for this task",
+    "ledger_kinds": [
+      "search"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyTelegramBot",
+    "repo": "my-telegram-bot",
+    "package": "mytelegrambot",
+    "title": "pushes ledger notifications; relays Policy ASK to a human over Telegram",
+    "added": "2026-07-05",
+    "status": "shipped",
+    "backlog_label": "my-telegram-bot",
+    "engine_call": "none",
+    "ledger_kinds": [
+      "notify",
+      "ask"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyChangelogger",
+    "repo": "my-changelogger",
+    "package": "mychangelogger",
+    "title": "turns ship/fix ledger entries into a CHANGELOG.md section",
+    "added": "2026-07-05",
+    "status": "shipped",
+    "backlog_label": "my-changelogger",
+    "engine_call": "none",
+    "ledger_kinds": [
+      "changelog"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyProjector",
+    "repo": "my-projector",
+    "package": "myprojector",
+    "title": "keeps the fleet's Project board + tracking issues synced to live repo state",
+    "added": "2026-07-07",
+    "status": "shipped",
+    "backlog_label": "my-projector",
+    "engine_call": "optional: rewrite this card's last/next-step summary",
+    "ledger_kinds": [
+      "project-sync"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyPlanner",
+    "repo": "my-planner",
+    "package": "myplanner",
+    "title": "produces a priority-ordered, multi-item plan across the whole backlog",
+    "added": "2026-07-07",
+    "status": "shipped",
+    "backlog_label": "my-planner",
+    "engine_call": "required: propose a sequence, with rationale",
+    "ledger_kinds": [
+      "plan"
+    ],
+    "depends_on": [
+      "tool:my-orchestrator"
+    ]
+  },
+  {
+    "tool": "MyResearcher",
+    "repo": "my-researcher",
+    "package": "myresearcher",
+    "title": "discovers external sources live (web + arXiv), writes a cited study brief",
+    "added": "2026-07-07",
+    "status": "shipped",
+    "backlog_label": "my-researcher",
+    "engine_call": "write a study brief from these discovered sources / order these researched topics",
+    "ledger_kinds": [
+      "research",
+      "study_plan"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MySite",
+    "repo": "my-site",
+    "package": "mysite",
+    "title": "drafts content/design changes for a personal Jekyll site",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-site",
+    "engine_call": "draft the Jekyll content for this request",
+    "ledger_kinds": [
+      "site_change"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyDocs",
+    "repo": "my-docs",
+    "package": "mydocs",
+    "title": "keeps the fleet's technical-docs site in sync with each tool's README/CLAUDE.md",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-docs",
+    "engine_call": "write/update this tool's docs page from its README + seams",
+    "ledger_kinds": [
+      "docs_sync"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyTypster",
+    "repo": "my-typster",
+    "package": "mytypster",
+    "title": "drafts and compiles a document as typeset Typst source + PDF",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-typster",
+    "engine_call": "draft the Typst source for this content request",
+    "ledger_kinds": [
+      "typst_doc"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyPresentation",
+    "repo": "my-presentation",
+    "package": "mypresentation",
+    "title": "drafts a slide-by-slide talk outline, then renders it via MyTypster",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-presentation",
+    "engine_call": "draft the slide outline + speaker notes",
+    "ledger_kinds": [
+      "presentation"
+    ],
+    "depends_on": [
+      "tool:my-typster"
+    ]
+  },
+  {
+    "tool": "MyUni",
+    "repo": "my-uni",
+    "package": "myuni",
+    "title": "decomposes a field of study into a curriculum, one issue per topic",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-uni",
+    "engine_call": "decompose this field into an ordered curriculum",
+    "ledger_kinds": [
+      "curriculum"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyLibrarian",
+    "repo": "my-librarian",
+    "package": "mylibrarian",
+    "title": "discovers community libraries/CLIs for a task and recommends build-vs-buy",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-librarian",
+    "engine_call": "recommend which discovered packages to use, with trade-offs",
+    "ledger_kinds": [
+      "library_survey"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyArchivist",
+    "repo": "my-archivist",
+    "package": "myarchivist",
+    "title": "catalogs a personal book/materials collection into a unified index",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-archivist",
+    "engine_call": "optional: assign a subject tag + blurb",
+    "ledger_kinds": [
+      "catalog"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyIdea",
+    "repo": "my-idea",
+    "package": "myidea",
+    "title": "explores a rough idea against the existing fleet and posts a structured brief",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-idea",
+    "engine_call": "required: explore this idea against this fleet",
+    "ledger_kinds": [
+      "idea_explored",
+      "idea_filed"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyDashboard",
+    "repo": "my-dashboard",
+    "package": "mydashboard",
+    "title": "renders the org's one front-page dashboard",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-dashboard",
+    "engine_call": "optional: write the two-sentence state-of-the-fleet banner",
+    "ledger_kinds": [
+      "dashboard_render"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyTodo",
+    "repo": "my-todo",
+    "package": "mytodo",
+    "title": "curates a TODO.md (per-repo or org-wide roll-up) from open issues + the plan",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-todo",
+    "engine_call": "optional: prioritise issues into Now/Next/Later",
+    "ledger_kinds": [
+      "todo"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyScraper",
+    "repo": "my-scraper",
+    "package": "myscraper",
+    "title": "given a URL + a question, fetches the page and extracts structured data",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-scraper",
+    "engine_call": "extract structured data answering this question from this page's text",
+    "ledger_kinds": [
+      "scrape"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyServer",
+    "repo": "my-server",
+    "package": "myserver",
+    "title": "read-only HTTP server over the shared ledger",
+    "added": "2026-07-08",
+    "status": "shipped",
+    "backlog_label": "my-server",
+    "engine_call": "none — deterministic",
+    "ledger_kinds": [],
+    "depends_on": []
+  },
+  {
+    "tool": "MyCoder",
+    "repo": "my-coder",
+    "package": "mycoder",
+    "title": "issue → diff → PR (the act tool)",
+    "added": "2026-07-05",
+    "status": "building",
+    "backlog_label": "my-coder",
+    "engine_call": "deferred: write the diff for this issue",
+    "ledger_kinds": [],
+    "depends_on": []
+  },
+  {
+    "tool": "MyReviewer",
+    "repo": "my-reviewer",
+    "package": "myreviewer",
+    "title": "flags correctness bugs on an open PR",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-reviewer",
+    "engine_call": "does this diff have a correctness bug?",
+    "ledger_kinds": [
+      "review"
+    ],
+    "depends_on": [
+      "core:diff"
+    ]
+  },
+  {
+    "tool": "MyGroomer",
+    "repo": "my-groomer",
+    "package": "mygroomer",
+    "title": "labels/splits raw issues into ready units",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-groomer",
+    "engine_call": "split/label this issue",
+    "ledger_kinds": [
+      "groom"
+    ],
+    "depends_on": [
+      "core:list_labels"
+    ]
+  },
+  {
+    "tool": "MyScaffolder",
+    "repo": "my-scaffolder",
+    "package": "myscaffolder",
+    "title": "bootstraps a new My[X] tool repo from a proposal",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-scaffolder",
+    "engine_call": "expand a proposal into the four CLAUDE.md seams",
+    "ledger_kinds": [
+      "scaffold"
+    ],
+    "depends_on": [
+      "core:repo_create"
+    ]
+  },
+  {
+    "tool": "MyWiki",
+    "repo": "my-wiki",
+    "package": "mywiki",
+    "title": "answers what-happened/why from this project's own ledger history",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-wiki",
+    "engine_call": "answer this question using only these ledger excerpts",
+    "ledger_kinds": [
+      "wiki"
+    ],
+    "depends_on": [
+      "tool:my-reporter"
+    ]
+  },
+  {
+    "tool": "MyGrapher",
+    "repo": "my-grapher",
+    "package": "mygrapher",
+    "title": "keeps a repo's knowledge graph fresh for other tools to query",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-grapher",
+    "engine_call": "none",
+    "ledger_kinds": [
+      "graph"
+    ],
+    "depends_on": [
+      "tool:my-searcher"
+    ]
+  },
+  {
+    "tool": "MyKnowledger",
+    "repo": "my-knowledger",
+    "package": "myknowledger",
+    "title": "answers domain questions from external literature",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-knowledger",
+    "engine_call": "answer this question using only these knowledge-graph excerpts",
+    "ledger_kinds": [
+      "knowledge",
+      "fact_check"
+    ],
+    "depends_on": [
+      "tool:my-grapher"
+    ]
+  },
+  {
+    "tool": "MyDriftWatcher",
+    "repo": "my-drift-watcher",
+    "package": "mydriftwatcher",
+    "title": "flags cross-repo convention drift",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-drift-watcher",
+    "engine_call": "none",
+    "ledger_kinds": [
+      "drift"
+    ],
+    "depends_on": [
+      "core:repo_list",
+      "core:get_file_contents"
+    ]
+  },
+  {
+    "tool": "MyAdvisor",
+    "repo": "my-advisor",
+    "package": "myadvisor",
+    "title": "recommends a course of action with trade-offs",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-advisor",
+    "engine_call": "recommend an answer, with trade-offs",
+    "ledger_kinds": [
+      "advise"
+    ],
+    "depends_on": [
+      "tool:my-wiki",
+      "tool:my-searcher"
+    ]
+  },
+  {
+    "tool": "MyDescriber",
+    "repo": "my-describer",
+    "package": "mydescriber",
+    "title": "writes/improves a PR's title + description after it's opened",
+    "added": "2026-07-05",
+    "status": "designed",
+    "backlog_label": "my-describer",
+    "engine_call": "write a PR title + description for this diff",
+    "ledger_kinds": [
+      "describe"
+    ],
+    "depends_on": [
+      "core:diff",
+      "tool:my-reviewer",
+      "tool:my-wiki"
+    ]
+  },
+  {
+    "tool": "MyProfessor",
+    "repo": "my-professor",
+    "package": "myprofessor",
+    "title": "teaches or quizzes on a topic already in MyKnowledger's corpus",
+    "added": "2026-07-08",
+    "status": "designed",
+    "backlog_label": "my-professor",
+    "engine_call": "write a lesson / grade this answer",
+    "ledger_kinds": [
+      "lesson",
+      "grade"
+    ],
+    "depends_on": [
+      "tool:my-knowledger"
+    ]
+  },
+  {
+    "tool": "MyNews",
+    "repo": "my-news",
+    "package": "mynews",
+    "title": "discovers current sources on a schedule and posts a dated digest",
+    "added": "2026-07-08",
+    "status": "designed",
+    "backlog_label": "my-news",
+    "engine_call": "write a digest from these newly discovered items",
+    "ledger_kinds": [
+      "news_digest"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyConductor",
+    "repo": "my-conductor",
+    "package": "myconductor",
+    "title": "orders the fleet's open PRs into a dependency-safe merge sequence",
+    "added": "2026-07-08",
+    "status": "designed",
+    "backlog_label": "my-conductor",
+    "engine_call": "order these PRs into a coherent merge story, within the given constraints",
+    "ledger_kinds": [
+      "conduct"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MySyndicator",
+    "repo": "my-syndicator",
+    "package": "mysyndicator",
+    "title": "applies one change to many repos, one PR each",
+    "added": "2026-07-08",
+    "status": "designed",
+    "backlog_label": "my-syndicator",
+    "engine_call": "none — deterministic",
+    "ledger_kinds": [
+      "syndicate"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MySecurity",
+    "repo": "my-security",
+    "package": "mysecurity",
+    "title": "scans every repo for leaked secrets and vulnerable dependencies",
+    "added": "2026-07-08",
+    "status": "designed",
+    "backlog_label": "my-security",
+    "engine_call": "optional: write a remediation summary from these redacted findings",
+    "ledger_kinds": [
+      "security"
+    ],
+    "depends_on": [
+      "core:repo_list"
+    ]
+  }
+]

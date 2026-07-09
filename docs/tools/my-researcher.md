@@ -1,4 +1,25 @@
+---
+tool: MyResearcher
+repo: my-researcher
+package: myresearcher
+status: shipped
+added: 2026-07-07
+backlog_label: my-researcher
+engine_call: write a study brief from these discovered sources / order these researched topics
+ledger_kinds: [research, study_plan]
+depends_on: []
+---
+
 # MyResearcher — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-researcher's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-researcher/README.md`](../../../my-researcher/README.md) and
+> [`my-researcher/CLAUDE.md`](../../../my-researcher/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
+
 
 ## Purpose
 

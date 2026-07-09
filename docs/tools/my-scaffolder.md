@@ -1,3 +1,15 @@
+---
+tool: MyScaffolder
+repo: my-scaffolder
+package: myscaffolder
+status: designed
+added: 2026-07-05
+backlog_label: my-scaffolder
+engine_call: expand a proposal into the four CLAUDE.md seams
+ledger_kinds: [scaffold]
+depends_on: [core:repo_create]
+---
+
 # MyScaffolder — design plan
 
 ## Purpose
