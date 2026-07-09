@@ -53,6 +53,23 @@ def test_claude_cli_engine_degrades_to_empty_on_malformed_json() -> None:
     assert eng.run(EngineRequest(prompt="x")) == EngineResult(text="", data={})
 
 
+def test_claude_cli_engine_strips_markdown_json_fence_from_result() -> None:
+    # claude-haiku-4-5 at low effort wraps JSON replies in a ```json fence
+    # despite a system prompt saying not to; downstream json.loads(result.text)
+    # must still succeed.
+    fenced = '```json\n{"brief": "ok"}\n```'
+    fake = _FakeRunner(json.dumps({"result": fenced, "is_error": False}))
+    result = ClaudeCLIEngine(runner=fake).run(EngineRequest(prompt="x"))
+    assert result.text == '{"brief": "ok"}'
+    assert json.loads(result.text) == {"brief": "ok"}
+
+
+def test_claude_cli_engine_leaves_unfenced_result_untouched() -> None:
+    fake = _FakeRunner(json.dumps({"result": "plain text", "is_error": False}))
+    result = ClaudeCLIEngine(runner=fake).run(EngineRequest(prompt="x"))
+    assert result.text == "plain text"
+
+
 def test_claude_cli_engine_degrades_to_empty_when_is_error() -> None:
     fake = _FakeRunner(json.dumps({"result": "partial garbage", "is_error": True}))
     result = ClaudeCLIEngine(runner=fake).run(EngineRequest(prompt="x"))

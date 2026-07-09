@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -43,6 +44,18 @@ def _claude(argv: list[str]) -> str:
     return proc.stdout if proc.returncode == 0 else ""
 
 
+# Models routinely wrap JSON replies in a ```json fence despite a system
+# prompt saying not to (verified against claude-haiku-4-5 at low effort).
+# Strip one whole-string fence here so every consumer's json.loads(result.text)
+# succeeds regardless of a given model's compliance with that instruction.
+_FENCE_RE = re.compile(r"^```[\w+-]*\n?(.*?)\n?```$", re.DOTALL)
+
+
+def _strip_code_fence(text: str) -> str:
+    match = _FENCE_RE.match(text.strip())
+    return match.group(1) if match else text
+
+
 class ClaudeCLIEngine:
     # Shells out to the Claude Code CLI in headless print mode instead of an
     # SDK: no new dependency, and it reuses whatever `claude` auth is already
@@ -75,5 +88,5 @@ class ClaudeCLIEngine:
             obj = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
             obj = {}
-        text = "" if obj.get("is_error") else obj.get("result", "")
+        text = "" if obj.get("is_error") else _strip_code_fence(obj.get("result", ""))
         return EngineResult(text=text, data=obj)
