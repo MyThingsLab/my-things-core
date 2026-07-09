@@ -55,8 +55,19 @@ def added_lines(diff_text: str) -> str:
     )
 
 
+# This module's own test suite plants realistic-looking fake secrets on
+# purpose, to prove the patterns actually match -- excluded from the diff scan
+# so this file's own tests don't block every PR that touches it. Each repo
+# that copies this scanner has its own test paths, so this exclusion only
+# ever matches here, in my-things-core.
+_EXCLUDED_PATHS = ("tests/test__secrets.py",)
+
+
 def _run_git_diff(argv: list[str]) -> str:
-    proc = subprocess.run(["git", "diff", "-U0", *argv], capture_output=True, text=True, check=True)
+    pathspec = [".", *(f":(exclude){p}" for p in _EXCLUDED_PATHS)]
+    proc = subprocess.run(
+        ["git", "diff", "-U0", *argv, "--", *pathspec], capture_output=True, text=True, check=True
+    )
     return proc.stdout
 
 

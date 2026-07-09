@@ -78,6 +78,23 @@ def test_main_scan_staged_catches_planted_secret(tmp_path: Path, monkeypatch, ca
     assert "aws_access_key_id" in out
 
 
+def test_main_scan_staged_ignores_own_test_fixtures(tmp_path: Path, monkeypatch, capsys) -> None:
+    # This module's own test file plants realistic-looking fake secrets on
+    # purpose (the tests above); the scanner must not block a PR that edits
+    # its own detector tests.
+    _init_git_repo(tmp_path)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test__secrets.py").write_text("AWS_KEY = 'AKIAABCDEFGHIJKLMNOP'\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "tests/test__secrets.py"], check=True)
+    monkeypatch.chdir(tmp_path)
+
+    rc = secrets.main(["scan-staged"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "clean" in out
+
+
 def test_main_scan_staged_clean_diff_passes(tmp_path: Path, monkeypatch, capsys) -> None:
     _init_git_repo(tmp_path)
     (tmp_path / "readme.txt").write_text("hello world\n")
