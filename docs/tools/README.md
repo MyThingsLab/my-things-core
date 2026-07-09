@@ -48,7 +48,7 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
 | MySecurity | scans every repo for leaked secrets (full git history) and vulnerable dependencies, opens a redacted issue | optional: "write a remediation summary from these redacted findings" | [my-security.md](my-security.md) |
 | MyDashboard | renders the org's one front-page dashboard: fleet grouped into dev-harness / services / casual-development shelves, with live status per tool | optional: "write the two-sentence state-of-the-fleet banner" | [my-dashboard.md](my-dashboard.md) |
 | MyIdea | explores a rough idea against the existing fleet and posts a structured brief (overlaps, contract fit, smallest slice, verdict) on the idea issue | required: "explore this idea against this fleet" | [my-idea.md](my-idea.md) |
-| MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
+| MyCoder | issue → diff → PR (the "act" tool) | required: "write the diff for this one issue" | [my-coder.md](my-coder.md) |
 
 ## Recommended build order
 
@@ -388,29 +388,34 @@ dedicated (not-a-tool) template repo — build that before MyScaffolder.
   `*credentials*`, `*secret*`) as a same-day config change, not something
   that waits on MySecurity shipping.
 
-## MyCoder (deferred)
+## MyCoder — now unblocked, see [my-coder.md](my-coder.md)
 
 The "act" tool — issue → diff → PR, i.e. writing the feature/fix itself
-rather than a test, a comment, or a label. Package `mycoder`. Deferred
-because its single Engine call ("write the diff for this issue") is the one
+rather than a test, a comment, or a label. Package `mycoder`. Was deferred
+because its single Engine call ("write the diff for this one issue") is the
 judgment step `NoopEngine` cannot meaningfully stand in for — a fixed-string
-reply can't produce a working diff, so the tool can be *designed* now but
-can't be *tested* end-to-end (happy path) until a real `Engine` backend
-exists. Revisit once Phase 1 (real backends, cheapest-capable-first per
-`ARCHITECTURE.md`) lands; at that point it inherits the same harness shape
-as the other five, with `Workspace` + `Policy` doing the heaviest lifting
-since it's the only tool that both edits code *and* needs the sandboxing
-that implies.
+reply can't produce a working diff, so the tool could be *designed* but not
+*tested* end-to-end until a real `Engine` backend existed. That backend
+(`ClaudeCLIEngine`, 2026-07-07) has shipped, so the design doc is now
+written for real and building starts — see [my-coder.md](my-coder.md) for
+the full plan (Engine-call output format, file-scope limits, apply +
+test-run quality gate). It inherits the same harness shape as the other
+tools, with `Workspace` + `Policy` doing the heaviest lifting since it's the
+only tool that both edits code *and* needs the sandboxing that implies —
+this is also why it's built out of the numbered order below rather than
+waiting its turn.
 
-**"my-renderer" (2026-07-08) is a candidate MyCoder target, not a tool of
-its own.** Proposed by the user as "an example of high-difficulty codebase
-that can be implemented with the fleet" — i.e. a deliberately hard build
-(a renderer, a compiler, whatever's chosen) meant to stress-test the
-fleet's ability to build real software, not a My[X] fleet-management bot.
-It has no issue-driven shape, no single narrow Engine call, no ledger
-`kind` of its own — it's *work for MyCoder to do* once MyCoder exists,
-the same way any other feature request would be. Revisit choosing a
-concrete target once MyCoder is real.
+**"my-renderer" (2026-07-08) → concretized as MyRaytracer, MyCoder's first
+real target.** Proposed by the user as "an example of high-difficulty
+codebase that can be implemented with the fleet" — a deliberately hard build
+meant to stress-test the fleet's ability to build real software
+autonomously, not a My[X] fleet-management bot. Confirmed 2026-07-09: the
+concrete choice is **my-raytracer** — a Monte Carlo path tracer (spheres +
+planes, Lambertian materials, deterministic given a fixed seed; scope
+detailed in `my-coder.md`'s "First target" section). It has no issue-driven
+shape of its own, no single narrow Engine call, no ledger `kind` — it's
+*work for MyCoder to do*, decomposed into a backlog of small issues the same
+way any other feature work would be, not a sixth `docs/tools/` design doc.
 
 ## Parked: personal continuous-service tools (2026-07-08)
 
