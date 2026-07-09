@@ -2,7 +2,7 @@
 tool: MyBibliography
 repo: my-bibliography
 package: mybibliography
-status: proposed
+status: designed
 added: 2026-07-09
 backlog_label: my-bibliography
 engine_call: resolve a reference request to one canonical candidate, with a citation key

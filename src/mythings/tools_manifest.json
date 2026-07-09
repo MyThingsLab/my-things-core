@@ -547,6 +547,20 @@
     ]
   },
   {
+    "tool": "MyBibliography",
+    "repo": "my-bibliography",
+    "package": "mybibliography",
+    "title": "discovers canonical citation metadata for a reference request and commits a normalized bibliography entry",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-bibliography",
+    "engine_call": "resolve a reference request to one canonical candidate, with a citation key",
+    "ledger_kinds": [
+      "bibliography"
+    ],
+    "depends_on": []
+  },
+  {
     "tool": "MyDataAnalysist",
     "repo": "my-data-analysist",
     "package": "mydataanalysist",
