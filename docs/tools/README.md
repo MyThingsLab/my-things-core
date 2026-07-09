@@ -57,6 +57,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MySyndicator | applies one change to many repos, one PR each (deterministic fan-out) | none — deterministic | [my-syndicator.md](my-syndicator.md) |
 | MyArchivist | catalogs a personal book/materials collection (physical + digital) into a unified, cross-referenced index | optional: "assign a subject tag + blurb" | [my-archivist.md](my-archivist.md) |
 | MySecurity | scans every repo for leaked secrets (full git history) and vulnerable dependencies, opens a redacted issue | optional: "write a remediation summary from these redacted findings" | [my-security.md](my-security.md) |
+| MyScraper | given a URL + a question, fetches the page and extracts structured data | "extract structured data answering this question from this page's text" | [my-scraper.md](my-scraper.md) |
 | MyDashboard | renders the org's one front-page dashboard: fleet grouped into dev-harness / services / casual-development shelves, with live status per tool | optional: "write the two-sentence state-of-the-fleet banner" | [my-dashboard.md](my-dashboard.md) |
 | MyIdea | explores a rough idea against the existing fleet and posts a structured brief (overlaps, contract fit, smallest slice, verdict) on the idea issue | required: "explore this idea against this fleet" | [my-idea.md](my-idea.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
@@ -195,6 +196,14 @@ narrative; the manifest is canonical for status/dependency data.
     avoids re-deriving that pattern. Not blocked on anything else; the real
     gate is confirming the `gitleaks` CI toolchain addition (see cross-cutting
     note below), same category of decision as MyTypster's `typst` addition.
+24. **MyScraper** — added 2026-07-08, proposed by the user directly.
+    Zero dependency on any other `My[X]` tool — stateless, single-URL,
+    no `Workspace`/PR path. Standalone; build any time. Shares the
+    stdlib-only live-HTTP posture MyResearcher/MyNews already established,
+    but is the first of the three to fetch **arbitrary, uncurated** origins
+    rather than a fixed API (arXiv) or configured provider — so its
+    robots.txt-honoring gate is worth confirming before implementation,
+    not assumed from the others.
 
 ## Cross-cutting notes
 
