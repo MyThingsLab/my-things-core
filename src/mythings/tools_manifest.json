@@ -545,5 +545,19 @@
     "depends_on": [
       "core:repo_list"
     ]
+  },
+  {
+    "tool": "MyDataAnalysist",
+    "repo": "my-data-analysist",
+    "package": "mydataanalysist",
+    "title": "given a local CSV, deterministically profiles it and narrates insights + one follow-up analysis",
+    "added": "2026-07-09",
+    "status": "building",
+    "backlog_label": "my-data-analysist",
+    "engine_call": "given a deterministic CSV profile, write a short narrative plus one concrete follow-up analysis",
+    "ledger_kinds": [
+      "analysis"
+    ],
+    "depends_on": []
   }
 ]

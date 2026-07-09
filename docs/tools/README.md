@@ -60,6 +60,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MyScraper | given a URL + a question, fetches the page and extracts structured data | "extract structured data answering this question from this page's text" | [my-scraper.md](my-scraper.md) |
 | MyDashboard | renders the org's one front-page dashboard: fleet grouped into dev-harness / services / casual-development shelves, with live status per tool | optional: "write the two-sentence state-of-the-fleet banner" | [my-dashboard.md](my-dashboard.md) |
 | MyIdea | explores a rough idea against the existing fleet and posts a structured brief (overlaps, contract fit, smallest slice, verdict) on the idea issue | required: "explore this idea against this fleet" | [my-idea.md](my-idea.md) |
+| MyDataAnalysist | given a local CSV, deterministically profiles it and narrates insights + one follow-up analysis | "given a deterministic CSV profile, write a short narrative plus one concrete follow-up analysis" | [my-data-analysist.md](my-data-analysist.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
