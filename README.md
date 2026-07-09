@@ -22,6 +22,11 @@ the interface.
 | `mythings.github` | Thin `gh`-CLI adapter for issues, PRs, and CI status. GitHub is the execution substrate, not an abstraction. | implemented |
 | `mythings.isolation` | `Workspace` — a git-worktree sandbox, and detection of GitHub Actions (where the runner *is* the sandbox). | implemented |
 
+Plus shared utilities that aren't swappable seams, just plumbing every tool
+would otherwise reimplement — e.g. `mythings.logging`, one call to wire a
+`Logger` with a JSONL sink (for a machine) and a colorized console sink (for a
+human). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#utilities-beyond-the-five-contracts).
+
 ## Design rules (why it looks like this)
 
 - **Deterministic-first.** Nothing here calls an LLM. The `Engine` protocol is

@@ -86,6 +86,22 @@ up — so a worker edits an isolated tree, never the live checkout. On a GitHub
 Actions runner the machine is already disposable, so `in_github_actions()` lets
 a caller skip the worktree when it is redundant.
 
+## Utilities beyond the five contracts
+
+Not every shared module is a contract — a contract is a swappable interface
+(`Protocol` or thin adapter) another repo builds against. Some modules are
+just shared plumbing every tool would otherwise reimplement:
+
+- `logging` — one call, `configure(tool, json_path=..., console=...)`, wires a
+  standard-library `Logger` with two independent sinks: JSONL to a file (for a
+  later `Engine` call, or a human running `jq`, to read back) and colorized
+  text to stderr (for a human watching a terminal). Distinct from `ledger`:
+  `ledger` is the append-only *outcome* record a tool's own logic reasons
+  over; `logging` is diagnostic noise during a run that nothing downstream
+  depends on. Deliberately built on `logging.Logger` rather than a bespoke
+  type, so it composes with any library that already logs through the
+  standard library.
+
 ## What is intentionally *not* here
 
 - No LLM calls beyond the `engine` seam itself — tools still choose when to
