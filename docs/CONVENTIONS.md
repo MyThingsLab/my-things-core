@@ -40,6 +40,7 @@ new tool = filling those.
 | All-public / no surprise bill | this doc | org default visibility + $0 spending limit |
 | Isolated from other ventures | `harness.md` | org placement (`MyThingsLab`) |
 | Harness rules stay in sync | this doc | drift-check test (`HARNESS.md` == canonical) |
+| Dependency vulnerabilities surfaced | this doc | `pip-audit` in `ci.yml` (warn-only) + Dependabot |
 
 ## Coverage & badges
 
@@ -54,6 +55,28 @@ the `<pkg>` rename. The only manual step is one-time and owner-only: add the
 repo on codecov.io and set the secret —
 `gh secret set CODECOV_TOKEN -R MyThingsLab/<repo>`. A token is **never**
 committed.
+
+## Dependency-vulnerability scanning
+
+No repo had a tripwire for a compromised or CVE'd dependency landing in its
+own `pip install -e ".[dev]"` closure. `my-template` ships both wiring
+points, so a new tool inherits them — existing repos adopt it the same way:
+
+- **CI** (`ci.yml`, right after the test step): `pip install pip-audit &&
+  pip-audit` against the environment `pip install -e ".[dev]"` already built —
+  no separate lockfile or requirements export needed.
+- **Dependabot** (`.github/dependabot.yml`): `pip` + `github-actions`
+  ecosystems, weekly.
+
+**Warn-only for now** (`continue-on-error: true` on the CI step) — the
+opposite call from the secret-leak tripwire, deliberately. `pip-audit`'s
+advisory DB flags plenty of transitive dev-dependency noise (test/lint
+tooling, not shipped code) the fleet hasn't triaged yet, and a brand-new gate
+with an unknown false-positive rate that hard-fails every PR is worse than no
+gate — it trains everyone to `--no-verify`/ignore red CI. Once a few weeks of
+warn-only runs show the real signal, flip `continue-on-error` to `false` (or
+scope it to only the runtime `dependencies`, which for `my-things-core` is
+empty by design) and it becomes a real gate like the rest of this table.
 
 ## The CLAUDE.md hierarchy
 
