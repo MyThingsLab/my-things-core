@@ -93,6 +93,41 @@ def test_shortlist_ties_break_deterministically_by_doc_then_ordinal() -> None:
     assert shortlist([b0, a2, a1], "em") == [a1, a2, b0]
 
 
+def test_shortlist_prefers_the_explaining_section_over_a_name_dropping_abstract() -> None:
+    # The #90 defect. Set-based overlap scores these identically -- both contain
+    # {ica}. The abstract wins on ordinal and buries the real section. Only term
+    # frequency separates the passage that *explains* a term from the one that
+    # merely lists it.
+    abstract = Chunk(doc_id="d", ordinal=0, text="we review pca ica em hmm mcmc", start=0, end=1)
+    section = Chunk(
+        doc_id="d", ordinal=9, text="ica separates sources; ica assumes ica", start=0, end=1
+    )
+    filler = [
+        Chunk(doc_id="d", ordinal=i, text="prose about models", start=0, end=1) for i in range(1, 9)
+    ]
+
+    assert shortlist([abstract, *filler, section], "ica", top=1) == [section]
+
+
+def test_shortlist_downweights_a_token_common_to_every_chunk() -> None:
+    # "algorithm" is everywhere, so it must not decide the ranking; the rare
+    # "baum" must. Under bare overlap both chunks score 1 and ordinal decides.
+    common = Chunk(doc_id="d", ordinal=0, text="algorithm algorithm algorithm", start=0, end=1)
+    rare = Chunk(doc_id="d", ordinal=5, text="algorithm baum welch", start=0, end=1)
+    filler = [
+        Chunk(doc_id="d", ordinal=i, text="algorithm prose", start=0, end=1) for i in range(1, 5)
+    ]
+
+    assert shortlist([common, *filler, rare], "baum algorithm", top=1) == [rare]
+
+
+def test_shortlist_scores_a_token_present_in_every_chunk_without_degrading() -> None:
+    # Smoothed IDF keeps an all-chunks-match positive, so ties still break by
+    # (doc_id, ordinal) rather than silently falling to the degrade path.
+    chunks = [Chunk(doc_id="d", ordinal=i, text="em", start=0, end=1) for i in range(3)]
+    assert shortlist(chunks, "em", top=2) == chunks[:2]
+
+
 def test_shortlist_degrades_to_leading_chunks_when_nothing_scores() -> None:
     chunks = [Chunk(doc_id="d", ordinal=i, text="kittens", start=0, end=1) for i in range(5)]
     assert shortlist(chunks, "quantum chromodynamics", top=2) == chunks[:2]
