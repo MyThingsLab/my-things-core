@@ -43,6 +43,7 @@ new tool = filling those.
 | No planted secrets in diffs/PRs | this doc | `mythings._secrets` pre-commit hook + `ci.yml` step |
 | Dependency vulnerabilities surfaced | this doc | `pip-audit` in `ci.yml` (warn-only) + Dependabot |
 | Critical bug halts new dispatch | this doc | `fleet_dispatch.py` / `fleet_cycle.py` check for open `critical`-labelled issues |
+| Tools agree with the core they import | this doc | `python -m mythings._compat --check` in core's CI |
 
 ## Filing bugs
 
@@ -57,6 +58,31 @@ Three severity labels, in every repo:
   dispatch org-wide until it's closed — `fleet_dispatch.py` and
   `fleet_cycle.py` refuse to start new work while one is open. This is a
   soft halt: in-flight workers finish normally, only *new* dispatch stops.
+
+## Core-API coherence
+
+Every tool installs core as `my-things-core @ git+…@main` — unpinned, floating.
+That is deliberate (a pin nobody bumps is a lie), but it means the day core
+renames or drops a public symbol, every tool breaks silently, one CI run at a
+time. `python -m mythings._compat` is the gate that makes that impossible:
+
+- **Claims.** Each tool records what it needs from core in `tools_manifest.json`
+  (`depends_on: ["core:diff", …]`). A **shipped** tool whose claim core no longer
+  satisfies is an error. An **unbuilt** tool's unmet claim is *pending* — that
+  claim is precisely the prerequisite for building it, so it is reported, never
+  fatal.
+- **Imports.** With `--workspace <root>`, every `from mythings… import X` in
+  every shipped tool's source must resolve against the installed core. This is
+  ground truth, where `depends_on` is only a declaration.
+- **Environment.** The shared `.venv` installs core editable from *one*
+  checkout. Work inside a git worktree of core and `import mythings` still
+  resolves to the other tree — so an entry you just added to the manifest is
+  invisible, and the check you just wrote silently tests the wrong source. The
+  command refuses to run in a core checkout the interpreter is not actually
+  serving, and prints the `PYTHONPATH` that fixes it.
+
+Core's CI runs `--check` (claims + environment). The import scan needs sibling
+checkouts, so it belongs in `fleet_cycle.py`, not in a single repo's CI.
 
 ## Coverage & badges
 
