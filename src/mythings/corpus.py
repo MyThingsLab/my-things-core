@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import math
+import os
 import re
 import subprocess
 from collections.abc import Callable, Iterable
@@ -66,6 +68,32 @@ def extract(path: Path) -> str:
     if path.suffix.lower() == ".pdf":
         return _pdftotext(path)
     return path.read_text(encoding="utf-8")
+
+
+def cached_extractor(cache_dir: Path, *, extractor: Extractor = extract) -> Extractor:
+    # Extracting a shelf of PDFs costs tens of seconds and the text never changes
+    # while the file doesn't, so an interactive caller re-pays that on every
+    # query. Opt-in by construction: this returns an Extractor, so core still
+    # touches no disk unless a caller asks for a cache and names the directory.
+    # Keyed on (size, mtime_ns) as well as path, so editing a file invalidates it.
+    def _extract(path: Path) -> str:
+        stat = path.stat()
+        key = f"{path.resolve()}\0{stat.st_size}\0{stat.st_mtime_ns}"
+        entry = cache_dir / (hashlib.sha256(key.encode()).hexdigest() + ".txt")
+        try:
+            return entry.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            pass
+        text = extractor(path)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        # Write-then-rename: a crash mid-write must not leave a truncated entry
+        # that later reads would trust as a complete extraction.
+        tmp = entry.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(entry)
+        return text
+
+    return _extract
 
 
 def _slug(stem: str) -> str:

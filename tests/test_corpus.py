@@ -5,6 +5,7 @@ import pytest
 from mythings.corpus import (
     Chunk,
     Document,
+    cached_extractor,
     chunk,
     cite,
     ingest,
@@ -38,6 +39,53 @@ def test_ingest_disambiguates_colliding_slugs() -> None:
         extractor=lambda p: "x",
     )
     assert [d.id for d in docs] == ["notes", "notes-2"]
+
+
+def test_cached_extractor_extracts_once_per_unchanged_file(tmp_path: Path) -> None:
+    source = tmp_path / "book.txt"
+    source.write_text("body")
+    calls: list[Path] = []
+
+    def slow(path: Path) -> str:
+        calls.append(path)
+        return path.read_text()
+
+    cached = cached_extractor(tmp_path / "cache", extractor=slow)
+    assert cached(source) == "body"
+    assert cached(source) == "body"
+    assert len(calls) == 1
+
+
+def test_cached_extractor_reextracts_when_the_file_changes(tmp_path: Path) -> None:
+    source = tmp_path / "book.txt"
+    source.write_text("first")
+    calls: list[Path] = []
+
+    def extractor(path: Path) -> str:
+        calls.append(path)
+        return path.read_text()
+
+    cached = cached_extractor(tmp_path / "cache", extractor=extractor)
+    assert cached(source) == "first"
+    # A stale cache that survives an edit is worse than no cache: the citation
+    # spans would point into text the file no longer contains.
+    source.write_text("second and longer")
+    assert cached(source) == "second and longer"
+    assert len(calls) == 2
+
+
+def test_cached_extractor_leaves_no_temp_file_behind(tmp_path: Path) -> None:
+    source = tmp_path / "book.txt"
+    source.write_text("body")
+    cache = tmp_path / "cache"
+    cached_extractor(cache, extractor=lambda p: "body")(source)
+    assert [p.suffix for p in cache.iterdir()] == [".txt"]
+
+
+def test_cached_extractor_does_not_touch_disk_until_used(tmp_path: Path) -> None:
+    cache = tmp_path / "cache"
+    cached_extractor(cache)
+    assert not cache.exists()
 
 
 def test_chunk_spans_index_back_into_the_source_text() -> None:
