@@ -5,9 +5,9 @@ package: mytelegrambot
 status: shipped
 added: 2026-07-05
 backlog_label: my-telegram-bot
-engine_call: none
-ledger_kinds: [notify, ask]
-depends_on: []
+engine_call: none directly — /idea delegates its one Engine call to MyIdea's own explore()
+ledger_kinds: [notify, ask, poll]
+depends_on: [tool:my-idea]
 ---
 
 # MyTelegramBot — design plan
@@ -119,3 +119,15 @@ an `ASK` in practice, so build it after MyTester if sequencing by payoff.
 - Whether `TelegramPolicy` should retry a dropped Telegram API call before
   falling back to `DENY`, or fail closed immediately — assumed immediate
   fail-closed for v0 (simpler, and consistent with "never silently pass").
+
+**Addendum (2026-07-10):** added a `poll` command — the fleet's first inbound
+Telegram capability, resolving the "should this tool ever accept inbound
+messages" question left implicit in v0. It routes `/idea <text>` to MyIdea's
+`file_idea`/`explore`, imported directly as a Python dependency rather than a
+CLI hand-off (the fleet's usual cross-tool pattern) so the reply can carry the
+structured result in one synchronous Telegram message. This is the first
+tool-to-tool package dependency in the fleet outside of shared contracts —
+see `my-telegram-bot/CLAUDE.md` for the full rationale and the accepted
+limitations (crash-window duplicate filing, a race with `ask`'s own
+`poll_decision` over the same Telegram offset queue). Current behavior is
+authoritative in `my-telegram-bot/README.md`/`CLAUDE.md`, per the banner above.

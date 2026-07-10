@@ -71,16 +71,19 @@
     "tool": "MyTelegramBot",
     "repo": "my-telegram-bot",
     "package": "mytelegrambot",
-    "title": "pushes ledger notifications; relays Policy ASK to a human over Telegram",
+    "title": "pushes ledger notifications; relays Policy ASK to a human over Telegram; captures my-idea from chat",
     "added": "2026-07-05",
     "status": "shipped",
     "backlog_label": "my-telegram-bot",
-    "engine_call": "none",
+    "engine_call": "none directly — /idea delegates its one Engine call to MyIdea's own explore()",
     "ledger_kinds": [
       "notify",
-      "ask"
+      "ask",
+      "poll"
     ],
-    "depends_on": []
+    "depends_on": [
+      "tool:my-idea"
+    ]
   },
   {
     "tool": "MyChangelogger",
