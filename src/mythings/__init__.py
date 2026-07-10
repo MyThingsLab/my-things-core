@@ -14,6 +14,7 @@ from mythings.logging import configure as configure_logging
 from mythings.logging import log as log_structured
 from mythings.policy import ALLOW, Action, Decision, Policy, PolicyResult
 from mythings.projects import ProjectField, ProjectItem, Projects
+from mythings.testers import Session, Tester, TesterStore, Turn
 
 __version__ = "0.0.1"
 
@@ -38,6 +39,10 @@ __all__ = [
     "ProjectItem",
     "Projects",
     "PullRequest",
+    "Session",
+    "Tester",
+    "TesterStore",
+    "Turn",
     "Workspace",
     "configure_logging",
     "github_app_runner",

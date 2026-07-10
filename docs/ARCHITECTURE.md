@@ -102,6 +102,34 @@ just shared plumbing every tool would otherwise reimplement:
   type, so it composes with any library that already logs through the
   standard library.
 
+- `testers` — the fleet's only notion of a *second person*. Every other module
+  assumes a single principal: `ledger` is one global append-only file, and the
+  one tool that authenticates (`my-server`) does it with one shared token. To
+  let outside testers explore the fleet through `my-telegram-bot`, three things
+  are needed that nothing else provides: identity (`register` /`authenticate` /
+  `by_chat_id`, storing only a token's sha256 — the raw token is returned once
+  and never written), resumable per-tester state (`start_session` /
+  `append_turn` / `resume`, replayed by `(session_id, seq)`), and a hard cap on
+  Engine spend by someone who isn't the operator.
+
+  Backed by stdlib `sqlite3`, so the runtime stays dependency-free; WAL plus a
+  busy timeout covers the real access shape (the bot polling while the server
+  reads). The module is **inert until constructed** — no import-time file or
+  network access, exactly like `Ledger(path)`.
+
+  **The quota is fail-closed, and that lives in one statement.**
+  `reserve_engine_call` is a single `UPDATE … WHERE enabled = 1 AND engine_used
+  < engine_quota`, decided by `rowcount`: the guard is in the `WHERE` clause, so
+  a read-then-write race cannot oversell (a naive read-then-write grants ~96
+  calls against a quota of 50 under six processes — each one billed). Callers
+  reserve *before* spending, never after, so a crash mid-call over-counts (safe)
+  rather than over-spends (not). No row updated means refusal — the default
+  answer is no, mirroring `TelegramPolicy`'s deny-on-timeout.
+
+  `ledger_for(tester)` hands back an ordinary `Ledger` on a per-tester path, so
+  tester activity is isolated additively: no existing global-ledger reader
+  changes.
+
 ## What is intentionally *not* here
 
 - No LLM calls beyond the `engine` seam itself — tools still choose when to
