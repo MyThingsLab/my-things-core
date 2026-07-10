@@ -61,6 +61,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MyDashboard | renders the org's one front-page dashboard: fleet grouped into dev-harness / services / casual-development shelves, with live status per tool | optional: "write the two-sentence state-of-the-fleet banner" | [my-dashboard.md](my-dashboard.md) |
 | MyIdea | explores a rough idea against the existing fleet and posts a structured brief (overlaps, contract fit, smallest slice, verdict) on the idea issue | required: "explore this idea against this fleet" | [my-idea.md](my-idea.md) |
 | MyDataAnalysist | given a local CSV, deterministically profiles it and narrates insights + one follow-up analysis | "given a deterministic CSV profile, write a short narrative plus one concrete follow-up analysis" | [my-data-analysist.md](my-data-analysist.md) |
+| MyNotes | extracts tags/topics and a title from a freeform note filed as an issue | "extract 3-7 tags/topics and propose a title for this note" | [my-notes.md](my-notes.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
