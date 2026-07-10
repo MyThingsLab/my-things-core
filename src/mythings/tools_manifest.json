@@ -633,5 +633,19 @@
       "image_analysis"
     ],
     "depends_on": []
+  },
+  {
+    "tool": "MyGlossary",
+    "repo": "my-glossary",
+    "package": "myglossary",
+    "title": "defines a term from a document corpus, citing the exact source spans",
+    "added": "2026-07-10",
+    "status": "shipped",
+    "backlog_label": "my-glossary",
+    "engine_call": "define this term using only these excerpts, citing each claim inline",
+    "ledger_kinds": [
+      "glossary"
+    ],
+    "depends_on": []
   }
 ]
