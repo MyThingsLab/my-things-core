@@ -48,6 +48,16 @@ jobs:
           gh pr view "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" \
             --json title,body --jq '.title + "\n" + .body' \
             | python -m mythings._secrets scan-text
+      # Warn-only for now (continue-on-error): pip-audit's advisory DB flags a
+      # lot of transitive dev-dependency noise the fleet hasn't triaged yet.
+      # Tripwire first, gate once the false-positive rate is known -- see
+      # docs/CONVENTIONS.md "Dependency-vulnerability scanning" for the plan
+      # to flip this to a hard gate.
+      - name: Dependency vulnerability scan (warn-only)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
