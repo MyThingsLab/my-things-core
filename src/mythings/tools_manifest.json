@@ -604,5 +604,19 @@
       "manim_script"
     ],
     "depends_on": []
+  },
+  {
+    "tool": "MySignalProcessor",
+    "repo": "my-signal-processor",
+    "package": "mysignalprocessor",
+    "title": "given a CSV time-series, computes an FFT power spectrum and narrates findings",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-signal-processor",
+    "engine_call": "narrate FFT/stat findings and suggest one concrete follow-up action",
+    "ledger_kinds": [
+      "signal_analysis"
+    ],
+    "depends_on": []
   }
 ]
