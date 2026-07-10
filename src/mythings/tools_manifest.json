@@ -590,5 +590,47 @@
       "note_tagged"
     ],
     "depends_on": []
+  },
+  {
+    "tool": "MyManimEditor",
+    "repo": "my-manim-editor",
+    "package": "mymanimeditor",
+    "title": "translates an animation concept into a syntax-valid ManimCE Scene script",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-manim-editor",
+    "engine_call": "write one ManimCE Scene subclass for this animation concept",
+    "ledger_kinds": [
+      "manim_script"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MySignalProcessor",
+    "repo": "my-signal-processor",
+    "package": "mysignalprocessor",
+    "title": "given a CSV time-series, computes an FFT power spectrum and narrates findings",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-signal-processor",
+    "engine_call": "narrate FFT/stat findings and suggest one concrete follow-up action",
+    "ledger_kinds": [
+      "signal_analysis"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyImageProcessor",
+    "repo": "my-image-processor",
+    "package": "myimageprocessor",
+    "title": "given a local image, deterministically profiles it (dimensions/histogram/EXIF) and interprets findings",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-image-processor",
+    "engine_call": "interpret this deterministic image profile and suggest one concrete follow-up processing step",
+    "ledger_kinds": [
+      "image_analysis"
+    ],
+    "depends_on": []
   }
 ]
