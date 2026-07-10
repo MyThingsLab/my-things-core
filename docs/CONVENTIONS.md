@@ -42,6 +42,21 @@ new tool = filling those.
 | Harness rules stay in sync | this doc | drift-check test (`HARNESS.md` == canonical) |
 | No planted secrets in diffs/PRs | this doc | `mythings._secrets` pre-commit hook + `ci.yml` step |
 | Dependency vulnerabilities surfaced | this doc | `pip-audit` in `ci.yml` (warn-only) + Dependabot |
+| Critical bug halts new dispatch | this doc | `fleet_dispatch.py` / `fleet_cycle.py` check for open `critical`-labelled issues |
+
+## Filing bugs
+
+Three severity labels, in every repo:
+
+- `bug` — normal, non-urgent. Goes through the regular issue → PR flow.
+- `security` — security-relevant but not fleet-blocking on its own.
+- `critical` — the bug is a security issue or breaks a core invariant shared
+  across the fleet (a `my-things-core` contract, the harness, or anything
+  that would let other tools ship broken work on top of it). Filing a
+  `critical`-labelled issue in *any* MyThingsLab repo halts new fleet
+  dispatch org-wide until it's closed — `fleet_dispatch.py` and
+  `fleet_cycle.py` refuse to start new work while one is open. This is a
+  soft halt: in-flight workers finish normally, only *new* dispatch stops.
 
 ## Coverage & badges
 
