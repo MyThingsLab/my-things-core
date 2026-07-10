@@ -647,5 +647,24 @@
       "glossary"
     ],
     "depends_on": []
+  },
+  {
+    "tool": "MyGuide",
+    "repo": "my-guide",
+    "package": "myguide",
+    "title": "the fleet's front door for a non-technical newcomer: a plain-language catalog, wish matching, and a dry-run trial in a playground repo",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-guide",
+    "engine_call": "required: match a plain-language wish to the fleet catalog",
+    "ledger_kinds": [
+      "guide_catalog_rendered",
+      "guide_wish_matched",
+      "guide_trial_enqueued"
+    ],
+    "depends_on": [
+      "tool:my-server",
+      "tool:my-telegram-bot"
+    ]
   }
 ]

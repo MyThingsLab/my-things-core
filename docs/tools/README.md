@@ -65,6 +65,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MyManimEditor | translates an animation concept into a syntax-valid ManimCE Scene script | "write one ManimCE Scene subclass for this animation concept" | [my-manim-editor.md](my-manim-editor.md) |
 | MySignalProcessor | given a CSV time-series, computes an FFT power spectrum and narrates findings | "narrate FFT/stat findings and suggest one concrete follow-up action" | [my-signal-processor.md](my-signal-processor.md) |
 | MyImageProcessor | given a local image, deterministically profiles it (dimensions/histogram/EXIF) and interprets findings | "interpret this deterministic image profile and suggest one concrete follow-up processing step" | [my-image-processor.md](my-image-processor.md) |
+| MyGuide | the fleet's front door for a non-technical newcomer: a plain-language catalog, wish matching, and a dry-run trial in a playground repo | required: "match a plain-language wish to the fleet catalog" | [my-guide.md](my-guide.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
