@@ -96,3 +96,102 @@ def test_noop_default_reply_is_empty() -> None:
 def test_engine_protocol_is_structural() -> None:
     assert isinstance(NoopEngine(), Engine)
     assert not isinstance(object(), Engine)
+
+
+class _CountingEngine:
+    # A delegate that records every call and returns a scripted result, so a
+    # cache hit is observable as "the delegate was not called again".
+    def __init__(self, result: EngineResult) -> None:
+        self.result = result
+        self.calls: list[EngineRequest] = []
+
+    def run(self, request: EngineRequest) -> EngineResult:
+        self.calls.append(request)
+        return self.result
+
+
+def test_caching_engine_serves_a_repeat_request_from_disk(tmp_path):
+    from mythings.engine import CachingEngine
+
+    delegate = _CountingEngine(EngineResult(text="a definition", data={"is_error": False}))
+    eng = CachingEngine(delegate, tmp_path / "engine-cache")
+    req = EngineRequest(prompt="define EM", system="be precise")
+
+    first = eng.run(req)
+    second = eng.run(req)
+
+    assert first == second
+    assert first.text == "a definition"
+    assert len(delegate.calls) == 1  # the second run never reached the delegate
+
+
+def test_caching_engine_distinguishes_requests_by_content(tmp_path):
+    from mythings.engine import CachingEngine
+
+    delegate = _CountingEngine(EngineResult(text="x"))
+    eng = CachingEngine(delegate, tmp_path / "c")
+    eng.run(EngineRequest(prompt="define EM"))
+    eng.run(EngineRequest(prompt="define PCA"))
+    eng.run(EngineRequest(prompt="define EM", system="different system"))
+
+    assert len(delegate.calls) == 3  # each distinct request is billed once
+
+
+def test_caching_engine_isolates_by_tag(tmp_path):
+    # The same prompt on two models must not share an answer. Same dir, different
+    # tag => a miss, so a model switch never serves the other model's reply.
+    from mythings.engine import CachingEngine
+
+    cache = tmp_path / "shared"
+    haiku = _CountingEngine(EngineResult(text="haiku says"))
+    opus = _CountingEngine(EngineResult(text="opus says"))
+    req = EngineRequest(prompt="define EM")
+
+    assert CachingEngine(haiku, cache, tag="haiku").run(req).text == "haiku says"
+    assert CachingEngine(opus, cache, tag="opus").run(req).text == "opus says"
+    # And each is independently cached.
+    assert CachingEngine(haiku, cache, tag="haiku").run(req).text == "haiku says"
+    assert len(haiku.calls) == 1
+
+
+def test_caching_engine_never_caches_a_failure(tmp_path):
+    from mythings.engine import CachingEngine
+
+    delegate = _CountingEngine(EngineResult(text="", data={"is_error": True}))
+    eng = CachingEngine(delegate, tmp_path / "c")
+    req = EngineRequest(prompt="define EM")
+
+    eng.run(req)
+    eng.run(req)
+    # A transient failure must not poison the cache: the delegate is retried.
+    assert len(delegate.calls) == 2
+    assert not (tmp_path / "c").exists() or not list((tmp_path / "c").glob("*.json"))
+
+
+def test_caching_engine_never_caches_an_empty_reply(tmp_path):
+    from mythings.engine import CachingEngine
+
+    delegate = _CountingEngine(EngineResult(text="", data={}))
+    eng = CachingEngine(delegate, tmp_path / "c")
+    req = EngineRequest(prompt="define EM")
+    eng.run(req)
+    eng.run(req)
+    assert len(delegate.calls) == 2
+
+
+def test_caching_engine_is_inert_until_run(tmp_path):
+    from mythings.engine import CachingEngine
+
+    cache = tmp_path / "never"
+    CachingEngine(_CountingEngine(EngineResult(text="x")), cache)
+    assert not cache.exists()
+
+
+def test_caching_engine_leaves_no_temp_file(tmp_path):
+    from mythings.engine import CachingEngine
+
+    cache = tmp_path / "c"
+    CachingEngine(_CountingEngine(EngineResult(text="x", data={})), cache).run(
+        EngineRequest(prompt="p")
+    )
+    assert [p.suffix for p in cache.iterdir()] == [".json"]
