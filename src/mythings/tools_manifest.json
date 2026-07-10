@@ -75,7 +75,7 @@
     "added": "2026-07-05",
     "status": "shipped",
     "backlog_label": "my-telegram-bot",
-    "engine_call": "none directly — /idea delegates its one Engine call to MyIdea's own explore()",
+    "engine_call": "none directly \u2014 /idea delegates its one Engine call to MyIdea's own explore()",
     "ledger_kinds": [
       "notify",
       "ask",
@@ -370,7 +370,8 @@
       "scaffold"
     ],
     "depends_on": [
-      "core:repo_create"
+      "core:repo_create",
+      "core:repo_list"
     ]
   },
   {

@@ -7,7 +7,7 @@ added: 2026-07-05
 backlog_label: my-scaffolder
 engine_call: expand a proposal into the four CLAUDE.md seams
 ledger_kinds: [scaffold]
-depends_on: [core:repo_create]
+depends_on: [core:repo_create, core:repo_list]
 ---
 
 # MyScaffolder — design plan

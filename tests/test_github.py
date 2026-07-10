@@ -394,3 +394,27 @@ def test_get_file_contents_reraises_non_404() -> None:
 
     with pytest.raises(GitHubError, match="500"):
         gh.get_file_contents("Org/repo", "x.toml")
+
+
+def test_repo_create_is_public_and_org_level() -> None:
+    fake = FakeGh("https://github.com/Org/new-tool")
+    gh = GitHub(repo="o/r", runner=fake)
+
+    url = gh.repo_create("Org/new-tool", description="a new tool")
+
+    assert url == "https://github.com/Org/new-tool"
+    argv = fake.calls[0]
+    assert argv[:3] == ["repo", "create", "Org/new-tool"]
+    assert "--public" in argv
+    assert "--private" not in argv  # no private footgun in v0
+    assert "--repo" not in argv  # org-level, never scoped to a single repo
+    assert argv[-2:] == ["--description", "a new tool"]
+
+
+def test_repo_create_omits_empty_description() -> None:
+    fake = FakeGh("https://github.com/Org/x")
+    gh = GitHub(runner=fake)
+
+    gh.repo_create("Org/x")
+
+    assert "--description" not in fake.calls[0]

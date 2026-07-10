@@ -239,6 +239,21 @@ class GitHub:
         raw = json.loads(self._run(argv))
         return [obj["nameWithOwner"] for obj in raw]
 
+    def repo_create(self, slug: str, *, description: str = "") -> str:
+        # Create a new repo under the org and return its URL. The single
+        # *creating*, outward-facing write in this client -- strictly more
+        # consequential than opening a draft PR. Callers MUST route it through
+        # Policy first as an Action (ASK at minimum, collapsing to DENY when
+        # unattended), exactly as open_pr/create_issue are gated by their tools.
+        #
+        # Always public, deliberately: the fleet's "no surprise bill" invariant
+        # is all-public repos with a $0 spend gate, so a private-repo flag is
+        # not exposed in v0. Org-level, so it bypasses _argv (no --repo).
+        argv = ["repo", "create", slug, "--public"]
+        if description:
+            argv += ["--description", description]
+        return self._run(argv).strip().splitlines()[-1]
+
     def get_file_contents(self, repo: str, path: str, *, ref: str = "main") -> str | None:
         # Read one file's contents without cloning. Returns None when the file
         # (or repo/ref) doesn't exist -- a 404 -- so callers can treat "absent"
