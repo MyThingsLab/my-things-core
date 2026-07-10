@@ -62,6 +62,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MyIdea | explores a rough idea against the existing fleet and posts a structured brief (overlaps, contract fit, smallest slice, verdict) on the idea issue | required: "explore this idea against this fleet" | [my-idea.md](my-idea.md) |
 | MyDataAnalysist | given a local CSV, deterministically profiles it and narrates insights + one follow-up analysis | "given a deterministic CSV profile, write a short narrative plus one concrete follow-up analysis" | [my-data-analysist.md](my-data-analysist.md) |
 | MyNotes | extracts tags/topics and a title from a freeform note filed as an issue | "extract 3-7 tags/topics and propose a title for this note" | [my-notes.md](my-notes.md) |
+| MyManimEditor | translates an animation concept into a syntax-valid ManimCE Scene script | "write one ManimCE Scene subclass for this animation concept" | [my-manim-editor.md](my-manim-editor.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order

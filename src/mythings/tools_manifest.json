@@ -590,5 +590,19 @@
       "note_tagged"
     ],
     "depends_on": []
+  },
+  {
+    "tool": "MyManimEditor",
+    "repo": "my-manim-editor",
+    "package": "mymanimeditor",
+    "title": "translates an animation concept into a syntax-valid ManimCE Scene script",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-manim-editor",
+    "engine_call": "write one ManimCE Scene subclass for this animation concept",
+    "ledger_kinds": [
+      "manim_script"
+    ],
+    "depends_on": []
   }
 ]
