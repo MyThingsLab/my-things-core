@@ -217,6 +217,44 @@ class GitHub:
             argv += ["--add-label", label]
         self._run(self._argv(argv))
 
+    def diff(self, number: int, *, max_bytes: int = 1_000_000) -> str:
+        # A PR's unified diff. `gh pr diff` prints the raw patch (no --json).
+        # Cap very large diffs so a downstream Engine call can't be handed a
+        # multi-megabyte prompt; truncation is marked so the reader knows.
+        patch = self._run(self._argv(["pr", "diff", str(number)]))
+        if len(patch) > max_bytes:
+            return patch[:max_bytes] + "\n... [diff truncated]\n"
+        return patch
+
+    def list_labels(self) -> list[str]:
+        # The repo's full label set -- keeps an Engine call closed-vocabulary
+        # (label from this list, never invent one).
+        raw = json.loads(self._run(self._argv(["label", "list", "--json", "name"])))
+        return [obj["name"] for obj in raw]
+
+    def repo_list(self, org: str, *, limit: int = 1000) -> list[str]:
+        # Every repo under an org, as `owner/name` slugs. Org-wide, so it does
+        # NOT go through _argv -- a --repo flag would be meaningless here.
+        argv = ["repo", "list", org, "--json", "nameWithOwner", "--limit", str(limit)]
+        raw = json.loads(self._run(argv))
+        return [obj["nameWithOwner"] for obj in raw]
+
+    def get_file_contents(self, repo: str, path: str, *, ref: str = "main") -> str | None:
+        # Read one file's contents without cloning. Returns None when the file
+        # (or repo/ref) doesn't exist -- a 404 -- so callers can treat "absent"
+        # as data rather than an error; other gh failures still raise.
+        argv = ["api", f"repos/{repo}/contents/{path}?ref={ref}", "--jq", ".content"]
+        try:
+            encoded = self._run(argv)
+        except GitHubError as exc:
+            if "404" in str(exc) or "Not Found" in str(exc):
+                return None
+            raise
+        encoded = encoded.strip()
+        if not encoded:
+            return None
+        return base64.b64decode(encoded).decode("utf-8", errors="replace")
+
 
 def _pr_number(url: str) -> int:
     return int(url.rstrip("/").rsplit("/", 1)[-1])

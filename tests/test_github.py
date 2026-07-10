@@ -320,3 +320,77 @@ def test_github_app_runner_raises_on_gh_failure(monkeypatch, rsa_keypair: Path) 
 
     with pytest.raises(GitHubError, match="boom"):
         runner(["issue", "list"])
+
+
+class RaisingGh:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    def __call__(self, argv: list[str]) -> str:
+        raise self.exc
+
+
+def test_diff_returns_patch_and_appends_repo() -> None:
+    fake = FakeGh("--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n")
+    gh = GitHub(repo="o/r", runner=fake)
+
+    patch = gh.diff(7)
+
+    assert patch.startswith("--- a")
+    assert fake.calls[0][:3] == ["pr", "diff", "7"]
+    assert fake.calls[0][-2:] == ["--repo", "o/r"]
+
+
+def test_diff_truncates_oversize_patch() -> None:
+    fake = FakeGh("x" * 50)
+    gh = GitHub(runner=fake)
+
+    patch = gh.diff(1, max_bytes=10)
+
+    assert patch.startswith("x" * 10)
+    assert patch.endswith("[diff truncated]\n")
+    assert len(patch) < 50
+
+
+def test_list_labels_flattens_names() -> None:
+    fake = FakeGh(json.dumps([{"name": "bug"}, {"name": "core-contract"}]))
+    gh = GitHub(repo="o/r", runner=fake)
+
+    assert gh.list_labels() == ["bug", "core-contract"]
+    assert fake.calls[0][:2] == ["label", "list"]
+    assert fake.calls[0][-2:] == ["--repo", "o/r"]
+
+
+def test_repo_list_returns_slugs_without_repo_flag() -> None:
+    fake = FakeGh(json.dumps([{"nameWithOwner": "Org/a"}, {"nameWithOwner": "Org/b"}]))
+    gh = GitHub(repo="o/r", runner=fake)
+
+    assert gh.repo_list("Org") == ["Org/a", "Org/b"]
+    argv = fake.calls[0]
+    assert argv[:3] == ["repo", "list", "Org"]
+    assert "--repo" not in argv  # org-wide, never scoped to a single repo
+
+
+def test_get_file_contents_decodes_base64() -> None:
+    payload = base64.b64encode(b"[tool.ruff]\nline-length = 100\n").decode()
+    # GitHub's API returns base64 wrapped across lines; decode must tolerate it.
+    fake = FakeGh(payload[:4] + "\n" + payload[4:] + "\n")
+    gh = GitHub(runner=fake)
+
+    content = gh.get_file_contents("Org/repo", "pyproject.toml")
+
+    assert content == "[tool.ruff]\nline-length = 100\n"
+    assert "repos/Org/repo/contents/pyproject.toml?ref=main" in fake.calls[0][1]
+
+
+def test_get_file_contents_returns_none_on_404() -> None:
+    gh = GitHub(runner=RaisingGh(GitHubError("gh api ... failed (1): gh: Not Found (HTTP 404)")))
+
+    assert gh.get_file_contents("Org/repo", "missing.toml") is None
+
+
+def test_get_file_contents_reraises_non_404() -> None:
+    gh = GitHub(runner=RaisingGh(GitHubError("gh api ... failed (1): server error (HTTP 500)")))
+
+    with pytest.raises(GitHubError, match="500"):
+        gh.get_file_contents("Org/repo", "x.toml")
