@@ -618,5 +618,19 @@
       "signal_analysis"
     ],
     "depends_on": []
+  },
+  {
+    "tool": "MyImageProcessor",
+    "repo": "my-image-processor",
+    "package": "myimageprocessor",
+    "title": "given a local image, deterministically profiles it (dimensions/histogram/EXIF) and interprets findings",
+    "added": "2026-07-09",
+    "status": "designed",
+    "backlog_label": "my-image-processor",
+    "engine_call": "interpret this deterministic image profile and suggest one concrete follow-up processing step",
+    "ledger_kinds": [
+      "image_analysis"
+    ],
+    "depends_on": []
   }
 ]

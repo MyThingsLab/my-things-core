@@ -64,6 +64,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MyNotes | extracts tags/topics and a title from a freeform note filed as an issue | "extract 3-7 tags/topics and propose a title for this note" | [my-notes.md](my-notes.md) |
 | MyManimEditor | translates an animation concept into a syntax-valid ManimCE Scene script | "write one ManimCE Scene subclass for this animation concept" | [my-manim-editor.md](my-manim-editor.md) |
 | MySignalProcessor | given a CSV time-series, computes an FFT power spectrum and narrates findings | "narrate FFT/stat findings and suggest one concrete follow-up action" | [my-signal-processor.md](my-signal-processor.md) |
+| MyImageProcessor | given a local image, deterministically profiles it (dimensions/histogram/EXIF) and interprets findings | "interpret this deterministic image profile and suggest one concrete follow-up processing step" | [my-image-processor.md](my-image-processor.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
