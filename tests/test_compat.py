@@ -146,7 +146,9 @@ def test_cli_reports_and_exits_zero_on_a_healthy_fleet(
     assert main(["--check"]) == 0
     out = capsys.readouterr().out
     assert "0 error(s)" in out
-    assert "PENDING" in out  # the six unbuilt tools' prerequisites
+    # Whether any claims are PENDING depends on how many tools are still
+    # unbuilt at any given moment; the CLI's pending rendering is covered
+    # deterministically by test_an_unbuilt_tools_unmet_claim_is_pending_not_fatal.
 
 
 def test_cli_exits_nonzero_when_check_finds_an_error(
