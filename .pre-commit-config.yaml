@@ -16,3 +16,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: secret-scan
+        name: secret scan (staged diff)
+        entry: python -m mythings._secrets scan-staged
+        language: system
+        pass_filenames: false
+        always_run: true

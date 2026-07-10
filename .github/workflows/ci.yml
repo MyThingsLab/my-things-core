@@ -20,6 +20,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the secret-scan diff range below can resolve both
+          # the PR's base and head SHAs -- a shallow (default) clone wouldn't
+          # have the base commit locally.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -30,6 +35,19 @@ jobs:
         run: ruff check src tests
       - name: Tests
         run: pytest --cov=mythings --cov-report=xml
+      - name: Secret scan (added lines vs base)
+        if: github.event_name == 'pull_request'
+        run: |
+          python -m mythings._secrets scan-diff-range \
+            "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+      - name: Secret scan (PR title + body)
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr view "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" \
+            --json title,body --jq '.title + "\n" + .body' \
+            | python -m mythings._secrets scan-text
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:

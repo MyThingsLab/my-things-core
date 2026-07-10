@@ -40,6 +40,7 @@ new tool = filling those.
 | All-public / no surprise bill | this doc | org default visibility + $0 spending limit |
 | Isolated from other ventures | `harness.md` | org placement (`MyThingsLab`) |
 | Harness rules stay in sync | this doc | drift-check test (`HARNESS.md` == canonical) |
+| No planted secrets in diffs/PRs | this doc | `mythings._secrets` pre-commit hook + `ci.yml` step |
 
 ## Coverage & badges
 
@@ -54,6 +55,31 @@ the `<pkg>` rename. The only manual step is one-time and owner-only: add the
 repo on codecov.io and set the secret —
 `gh secret set CODECOV_TOKEN -R MyThingsLab/<repo>`. A token is **never**
 committed.
+
+## Secret-leak tripwire
+
+`mythings._secrets` (build tooling, not a contract — same status as
+`_devledger`/`_harness`) is a cheap regex scan for common credential shapes
+(AWS keys, GitHub/Slack tokens, private-key blocks, generic
+`api_key = "..."` assignments) run against **added lines only**, so a secret
+already sitting in history doesn't re-trigger the gate on every later commit.
+`my-template` ships both wiring points, so a new tool inherits them —
+existing repos adopt it the same two ways:
+
+- **Pre-commit** (`.pre-commit-config.yaml`): a `local` hook,
+  `entry: python -m mythings._secrets scan-staged`, `language: system` —
+  catches a planted secret before it's even committed.
+- **CI** (`ci.yml`, `pull_request` only): `actions/checkout@v4` needs
+  `fetch-depth: 0` so the PR's base SHA is resolvable locally, then
+  `python -m mythings._secrets scan-diff-range "<base sha>...<head sha>"`
+  scans the code diff, and piping `gh pr view --json title,body` through
+  `python -m mythings._secrets scan-text` scans the PR description itself
+  (a diff-only scan would miss a secret pasted straight into the PR body).
+
+Both fail hard today (no warn-first grace period): the check is cheap, has a
+near-zero false-positive rate against real code, and secrets are exactly the
+class of finding where "warn now, gate later" is the wrong trade — see
+`my-things-core`'s own `ci.yml`/`.pre-commit-config.yaml` for the wiring.
 
 ## The CLAUDE.md hierarchy
 
