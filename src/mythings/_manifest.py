@@ -38,6 +38,27 @@ def load_tools(text: str | None = None) -> list[ToolEntry]:
     return [ToolEntry(**obj) for obj in json.loads(text if text is not None else manifest_text())]
 
 
+def ledger_kind_registry(text: str | None = None) -> dict[str, str]:
+    # The runtime-Ledger `kind` registry, derived from the manifest's per-tool
+    # `ledger_kinds` (no separate file): maps each kind to the tool that owns
+    # it. Cross-tool consumers (MyReporter, MyDashboard, MyOrchestrator, the
+    # notify path) can discover the kinds that exist instead of hard-coding the
+    # strings they understand. Self-guarding: a kind declared by two tools is a
+    # collision -- the exact class of bug the MyWiki/MyKnowledger rename existed
+    # to avoid -- and raises here, so the manifest-integrity test (and thus CI)
+    # fails the moment a new tool reuses an existing kind.
+    owners: dict[str, str] = {}
+    for entry in load_tools(text):
+        for kind in entry.ledger_kinds:
+            if kind in owners:
+                raise ValueError(
+                    f"duplicate ledger kind {kind!r}: declared by both "
+                    f"{owners[kind]} and {entry.tool} — kinds must be unique across the fleet"
+                )
+            owners[kind] = entry.tool
+    return owners
+
+
 # Each design doc under docs/tools/ carries this frontmatter block so the doc
 # set stays queryable; the manifest is canonical and the blocks are generated
 # from it. `python -m mythings._manifest <docs-dir>` re-syncs them in one

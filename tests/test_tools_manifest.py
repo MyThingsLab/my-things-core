@@ -1,8 +1,26 @@
+import json
 from pathlib import Path
 
-from mythings._manifest import STATUSES, load_tools, resync
+import pytest
+
+from mythings._manifest import STATUSES, ledger_kind_registry, load_tools, resync
 
 DOCS_TOOLS = Path(__file__).parent.parent / "docs" / "tools"
+
+
+def _tool_stub(tool: str, repo: str, ledger_kinds: list[str]) -> dict:
+    return {
+        "tool": tool,
+        "repo": repo,
+        "package": repo.replace("-", ""),
+        "title": "stub",
+        "added": "2026-01-01",
+        "status": "designed",
+        "backlog_label": repo,
+        "engine_call": "none",
+        "ledger_kinds": ledger_kinds,
+        "depends_on": [],
+    }
 
 
 def test_manifest_loads_with_valid_entries() -> None:
@@ -52,3 +70,22 @@ def test_shipped_docs_carry_the_historical_banner() -> None:
         if "> **Historical.**" not in doc.read_text(encoding="utf-8"):
             unbannered.append(t.repo)
     assert not unbannered, f"shipped tools' docs missing the historical banner: {unbannered}"
+
+
+def test_ledger_kind_registry_is_collision_free_in_shipped_manifest() -> None:
+    registry = ledger_kind_registry()
+    all_kinds = [k for t in load_tools() for k in t.ledger_kinds]
+    # Every declared kind is registered, and to exactly one owning tool.
+    assert sorted(registry) == sorted(all_kinds)
+    assert len(registry) == len(all_kinds), "a ledger kind is claimed by two tools"
+
+
+def test_ledger_kind_registry_raises_on_collision() -> None:
+    text = json.dumps(
+        [
+            _tool_stub("MyAlpha", "my-alpha", ["shared_kind"]),
+            _tool_stub("MyBeta", "my-beta", ["shared_kind"]),
+        ]
+    )
+    with pytest.raises(ValueError, match="duplicate ledger kind 'shared_kind'"):
+        ledger_kind_registry(text)
