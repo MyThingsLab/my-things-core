@@ -1,8 +1,21 @@
+import base64
+import io
 import json
+import subprocess
+import urllib.error
+from pathlib import Path
 
 import pytest
 
-from mythings.github import CIStatus, GitHub, GitHubError, _pr_number, _rollup_status
+from mythings.github import (
+    CIStatus,
+    GitHub,
+    GitHubError,
+    _mint_app_jwt,
+    _pr_number,
+    _rollup_status,
+    github_app_runner,
+)
 
 
 class FakeGh:
@@ -118,3 +131,180 @@ def test_add_labels_sends_one_flag_per_label() -> None:
     assert argv.count("--add-label") == 2
     assert "my-uni" in argv and "my-researcher" in argv
     assert argv[-2:] == ["--repo", "o/r"]
+
+
+@pytest.fixture()
+def rsa_keypair(tmp_path: Path) -> Path:
+    key_path = tmp_path / "app.pem"
+    subprocess.run(
+        ["openssl", "genrsa", "-out", str(key_path), "2048"], capture_output=True, check=True
+    )
+    return key_path
+
+
+def _decode_b64url(segment: str) -> bytes:
+    padded = segment + "=" * (-len(segment) % 4)
+    return base64.urlsafe_b64decode(padded)
+
+
+def test_mint_app_jwt_has_expected_header_and_payload(rsa_keypair: Path) -> None:
+    jwt = _mint_app_jwt("4260739", rsa_keypair)
+
+    header_b64, payload_b64, sig_b64 = jwt.split(".")
+    header = json.loads(_decode_b64url(header_b64))
+    payload = json.loads(_decode_b64url(payload_b64))
+
+    assert header == {"alg": "RS256", "typ": "JWT"}
+    assert payload["iss"] == "4260739"
+    assert payload["exp"] > payload["iat"]
+    assert _decode_b64url(sig_b64)  # a real signature, not empty
+
+
+def test_mint_app_jwt_signature_verifies_against_the_public_key(
+    tmp_path: Path, rsa_keypair: Path
+) -> None:
+    pub_path = tmp_path / "app.pub"
+    subprocess.run(
+        ["openssl", "rsa", "-in", str(rsa_keypair), "-pubout", "-out", str(pub_path)],
+        capture_output=True,
+        check=True,
+    )
+
+    jwt = _mint_app_jwt("4260739", rsa_keypair)
+    signing_input, sig_b64 = jwt.rsplit(".", 1)
+
+    # openssl dgst -signature only reads a real file, not a pipe/fd, so the
+    # signature has to be written out before it can be verified.
+    sig_path = tmp_path / "sig.bin"
+    sig_path.write_bytes(_decode_b64url(sig_b64))
+    verify = subprocess.run(
+        ["openssl", "dgst", "-sha256", "-verify", str(pub_path), "-signature", str(sig_path)],
+        input=signing_input.encode(),
+        capture_output=True,
+    )
+    assert verify.returncode == 0, verify.stderr.decode()
+
+
+def test_mint_app_jwt_fails_loudly_on_bad_key(tmp_path: Path) -> None:
+    bad_key = tmp_path / "not-a-key.pem"
+    bad_key.write_text("not a real private key")
+
+    with pytest.raises(GitHubError, match="failed to sign"):
+        _mint_app_jwt("4260739", bad_key)
+
+
+class _FakeResponse:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def read(self) -> bytes:
+        return self._body
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
+def test_mint_installation_token_parses_token_and_expiry(monkeypatch, rsa_keypair: Path) -> None:
+    body = json.dumps({"token": "ghs_abc123", "expires_at": "2026-07-10T01:41:15Z"}).encode()
+    captured_req = {}
+
+    def fake_urlopen(req):
+        captured_req["url"] = req.full_url
+        captured_req["headers"] = {k.lower(): v for k, v in req.headers.items()}
+        return _FakeResponse(body)
+
+    monkeypatch.setattr("mythings.github.urllib.request.urlopen", fake_urlopen)
+
+    from mythings.github import _mint_installation_token
+
+    token, expires_at = _mint_installation_token("4260739", "145558758", rsa_keypair)
+
+    assert token == "ghs_abc123"
+    assert expires_at == "2026-07-10T01:41:15Z"
+    assert captured_req["url"] == "https://api.github.com/app/installations/145558758/access_tokens"
+    assert captured_req["headers"]["accept"] == "application/vnd.github+json"
+    assert captured_req["headers"]["authorization"].startswith("Bearer ")
+
+
+def test_mint_installation_token_raises_githuberror_on_http_error(
+    monkeypatch, rsa_keypair: Path
+) -> None:
+    def fake_urlopen(req):
+        raise urllib.error.HTTPError(
+            req.full_url, 404, "Not Found", {}, io.BytesIO(b'{"message": "Not Found"}')
+        )
+
+    monkeypatch.setattr("mythings.github.urllib.request.urlopen", fake_urlopen)
+
+    from mythings.github import _mint_installation_token
+
+    with pytest.raises(GitHubError, match="404"):
+        _mint_installation_token("4260739", "145558758", rsa_keypair)
+
+
+def test_github_app_runner_mints_once_and_reuses_within_ttl(monkeypatch, rsa_keypair: Path) -> None:
+    mint_calls = []
+
+    def fake_mint(app_id, installation_id, private_key_path):
+        mint_calls.append((app_id, installation_id))
+        return "tok-1", "2999-01-01T00:00:00Z"
+
+    monkeypatch.setattr("mythings.github._mint_installation_token", fake_mint)
+
+    run_calls = []
+
+    def fake_run(argv, *, capture_output, text, env):
+        run_calls.append(env["GH_TOKEN"])
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    runner = github_app_runner("4260739", "145558758", rsa_keypair)
+    runner(["issue", "list"])
+    runner(["pr", "create"])
+
+    assert len(mint_calls) == 1, "second call within TTL must reuse the cached token"
+    assert run_calls == ["tok-1", "tok-1"]
+
+
+def test_github_app_runner_remints_after_expiry(monkeypatch, rsa_keypair: Path) -> None:
+    tokens = iter(["tok-1", "tok-2"])
+    mint_calls = []
+
+    def fake_mint(app_id, installation_id, private_key_path):
+        mint_calls.append(1)
+        # Already-expired timestamp so the very next call re-mints too.
+        return next(tokens), "1970-01-01T00:00:00Z"
+
+    monkeypatch.setattr("mythings.github._mint_installation_token", fake_mint)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kw: subprocess.CompletedProcess(argv, 0, stdout="ok", stderr=""),
+    )
+
+    runner = github_app_runner("4260739", "145558758", rsa_keypair)
+    runner(["issue", "list"])
+    runner(["issue", "list"])
+
+    assert len(mint_calls) == 2, "an expired cached token must be re-minted, not reused"
+
+
+def test_github_app_runner_raises_on_gh_failure(monkeypatch, rsa_keypair: Path) -> None:
+    monkeypatch.setattr(
+        "mythings.github._mint_installation_token",
+        lambda *a: ("tok-1", "2999-01-01T00:00:00Z"),
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kw: subprocess.CompletedProcess(argv, 1, stdout="", stderr="boom"),
+    )
+
+    runner = github_app_runner("4260739", "145558758", rsa_keypair)
+
+    with pytest.raises(GitHubError, match="boom"):
+        runner(["issue", "list"])
