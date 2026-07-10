@@ -77,6 +77,15 @@ def _mint_installation_token(
     return obj["token"], obj["expires_at"]
 
 
+def github_app_token(app_id: str, installation_id: str, private_key_path: str | Path) -> str:
+    # For callers that need a raw token string rather than a Runner -- e.g. to
+    # set GH_TOKEN in a spawned subprocess's own environment (a headless
+    # `claude -p` worker running its own `gh` commands), which can't go
+    # through the Runner seam since it isn't Python code we control.
+    token, _expires_at = _mint_installation_token(app_id, installation_id, private_key_path)
+    return token
+
+
 def github_app_runner(
     app_id: str,
     installation_id: str,

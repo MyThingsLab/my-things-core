@@ -15,6 +15,7 @@ from mythings.github import (
     _pr_number,
     _rollup_status,
     github_app_runner,
+    github_app_token,
 )
 
 
@@ -227,6 +228,17 @@ def test_mint_installation_token_parses_token_and_expiry(monkeypatch, rsa_keypai
     assert captured_req["url"] == "https://api.github.com/app/installations/145558758/access_tokens"
     assert captured_req["headers"]["accept"] == "application/vnd.github+json"
     assert captured_req["headers"]["authorization"].startswith("Bearer ")
+
+
+def test_github_app_token_returns_just_the_token(monkeypatch, rsa_keypair: Path) -> None:
+    monkeypatch.setattr(
+        "mythings.github._mint_installation_token",
+        lambda *a: ("ghs_abc123", "2999-01-01T00:00:00Z"),
+    )
+
+    token = github_app_token("4260739", "145558758", rsa_keypair)
+
+    assert token == "ghs_abc123"
 
 
 def test_mint_installation_token_raises_githuberror_on_http_error(
