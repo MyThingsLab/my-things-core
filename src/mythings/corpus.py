@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import subprocess
 from collections.abc import Callable, Iterable
@@ -142,10 +143,47 @@ def chunk(doc: Document, *, target_chars: int = 1200) -> list[Chunk]:
     return chunks
 
 
+def _term_freq(text: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for tok in _TOKEN_RE.findall(text):
+        key = tok.lower()
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _idf(freqs: list[dict[str, int]]) -> dict[str, float]:
+    # Rare tokens discriminate; common ones do not. Without this, a query token
+    # like "algorithm" -- present in nearly every chunk of a textbook -- counts
+    # as much as the one rare token that actually identifies the passage.
+    n = len(freqs)
+    doc_freq: dict[str, int] = {}
+    for tf in freqs:
+        for token in tf:
+            doc_freq[token] = doc_freq.get(token, 0) + 1
+    # Smoothed: log(1 + n/(1+df)) is strictly positive, so a token occurring in
+    # every chunk still scores a real (small) match rather than zero. The plain
+    # log(n/(1+df)) goes negative there, which would push an all-chunks-match
+    # query onto the "nothing scored" degrade path -- a silent behaviour change.
+    return {token: math.log(1 + n / (1 + df)) for token, df in doc_freq.items()}
+
+
 def shortlist(chunks: Iterable[Chunk], query: str, *, top: int = 8) -> list[Chunk]:
     candidates = list(chunks)
     query_tokens = tokenize(query)
-    scored = [(len(query_tokens & tokenize(c.text)), c) for c in candidates]
+    freqs = [_term_freq(c.text) for c in candidates]
+    weights = _idf(freqs)
+    # TF-IDF, not bare overlap. Set intersection alone cannot separate the
+    # section that explains a term (which repeats it) from the abstract that
+    # merely name-drops it once, nor from a bibliography entry that happens to
+    # carry the words in a cited paper's title. The tf term is log-damped so a
+    # chunk cannot win on sheer repetition alone.
+    scored = [
+        (
+            sum((1 + math.log(tf[t])) * weights.get(t, 0.0) for t in query_tokens & tf.keys()),
+            c,
+        )
+        for tf, c in zip(freqs, candidates, strict=True)
+    ]
     if query_tokens and any(score > 0 for score, _ in scored):
         ranked = sorted(scored, key=lambda item: (-item[0], item[1].doc_id, item[1].ordinal))
         return [c for _, c in ranked[:top]]

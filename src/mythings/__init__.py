@@ -1,4 +1,13 @@
 from mythings.engine import ClaudeCLIEngine, Engine, EngineRequest, EngineResult, NoopEngine
+from mythings.fetch import (
+    FetchResult,
+    Getter,
+    RobotsChecker,
+    default_get,
+    default_robots_allowed,
+    fetch,
+    strip_html,
+)
 from mythings.github import (
     CIStatus,
     GitHub,
@@ -27,6 +36,8 @@ __all__ = [
     "Engine",
     "EngineRequest",
     "EngineResult",
+    "FetchResult",
+    "Getter",
     "GitHub",
     "GitHubError",
     "Issue",
@@ -39,14 +50,19 @@ __all__ = [
     "ProjectItem",
     "Projects",
     "PullRequest",
+    "RobotsChecker",
     "Session",
     "Tester",
     "TesterStore",
     "Turn",
     "Workspace",
     "configure_logging",
+    "default_get",
+    "default_robots_allowed",
+    "fetch",
     "github_app_runner",
     "github_app_token",
     "in_github_actions",
     "log_structured",
+    "strip_html",
 ]
