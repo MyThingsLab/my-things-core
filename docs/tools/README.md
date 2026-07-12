@@ -67,6 +67,9 @@ narrative; the manifest is canonical for status/dependency data.
 | MySignalProcessor | given a CSV time-series, computes an FFT power spectrum and narrates findings | "narrate FFT/stat findings and suggest one concrete follow-up action" | [my-signal-processor.md](my-signal-processor.md) |
 | MyImageProcessor | given a local image, deterministically profiles it (dimensions/histogram/EXIF) and interprets findings | "interpret this deterministic image profile and suggest one concrete follow-up processing step" | [my-image-processor.md](my-image-processor.md) |
 | MyGuide | the fleet's front door for a non-technical newcomer: a plain-language catalog, wish matching, and a dry-run trial in a playground repo | required: "match a plain-language wish to the fleet catalog" | [my-guide.md](my-guide.md) |
+| MyFigure | extracts figures with captions from PDFs/documents into a cross-referenced index | "match each detected image region to its nearest caption and write a one-line description" | [my-figure.md](my-figure.md) |
+| MyTables | extracts tables with captions from PDFs/documents into structured (CSV/Markdown) form | "match each detected table region to its nearest caption and summarize what it reports" | [my-tables.md](my-tables.md) |
+| MyEquations | extracts equations from PDFs/documents and explains what each symbol means | "transcribe one detected equation region to LaTeX and explain each symbol from surrounding prose" | [my-equations.md](my-equations.md) |
 | MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
 
 ## Recommended build order
@@ -211,6 +214,24 @@ narrative; the manifest is canonical for status/dependency data.
     rather than a fixed API (arXiv) or configured provider — so its
     robots.txt-honoring gate is worth confirming before implementation,
     not assumed from the others.
+27. **MyFigure** — added 2026-07-12, proposed by the user directly: PDF/
+    document ingestion currently stops at MyArchivist's metadata-only catalog
+    and `mythings.corpus`'s flat-text extraction, so no tool has ever opened
+    a figure, table, or equation. MyFigure is the first of three siblings
+    (with MyTables, MyEquations) closing that gap — see the cross-cutting
+    note below on why each carries its own classical-parsing dependency
+    instead of adding one to core. Soft-depends on MyArchivist for its
+    labeled-issue trigger; standalone otherwise. Build first among the
+    three — MyEquations reuses its image-crop-and-attach plumbing.
+28. **MyTables** — added 2026-07-12, same session. Independent of MyFigure/
+    MyEquations (different parsing library, different region type); build in
+    any order relative to them.
+29. **MyEquations** — added 2026-07-12, same session. The one sibling whose
+    single Engine call is *required* per detected region rather than a
+    caption-gap fallback, since there is no deterministic math-to-LaTeX path
+    — see its doc for why that still respects the one-call-per-run rule.
+    Build after MyFigure if sequencing by convenience (shares its region-crop
+    mechanism); not hard-blocked.
 
 ## Cross-cutting notes
 
@@ -420,6 +441,36 @@ narrative; the manifest is canonical for status/dependency data.
   permission deny-list (blocking `Read`/`Grep` on `.env*`, `*.pem`,
   `*credentials*`, `*secret*`) as a same-day config change, not something
   that waits on MySecurity shipping.
+- **Document-structure extraction (MyFigure/MyTables/MyEquations) needed
+  real parsing libraries — deliberately kept out of core.** Nothing in the
+  fleet has ever opened PDF page content: MyArchivist scans metadata only
+  (byte-scrapes `/Info`, never renders a page) and `mythings.corpus` shells
+  out to `pdftotext -layout` for flat text, with no page/layout/image
+  awareness. Locating figures, table grids, and math regions needs real
+  structural parsing (`PyMuPDF`, `pdfplumber`) that `my-things-core/CLAUDE.md`'s
+  "keep the runtime package dependency-free" rule rules out for core — core
+  only ever shells out to system binaries (`gh`, `git`, `pdftotext`), never
+  imports a Python parsing library. So each of the three tools carries its
+  **own** dependency in its **own** `pyproject.toml`, the same placement as
+  MyImageProcessor's Pillow dependency, not a core addition. This is the same
+  "three independent callers" shape as the ordered-selection-helper note
+  above, with the opposite conclusion: there the shared shape got promoted
+  into core once three callers confirmed it; here, all three callers are
+  known from the start (their designs shipped together) but the promotion is
+  deferred anyway, because the thing being shared is a third-party library
+  import, not a plumbing shape core already knows how to hold (an injectable
+  `Callable` around a system binary). If a fourth document-parsing tool shows
+  up wanting the identical "open this PDF, crop this region" primitive, that
+  is the trigger to revisit whether `my-things-core/CLAUDE.md`'s
+  dependency-free rule should gain a narrow, explicit exception — not before,
+  and not silently by one tool's PR.
+- **MyArchivist's role stays metadata-only; it hands off, it doesn't parse.**
+  The three extraction tools are triggered the same way MyArchivist already
+  hands off to MyBibliography — a labeled issue per source file
+  (`fig-source:`, `table-source:`, `eq-source:`), never an import of or
+  direct call into the new tools. MyArchivist's own contract (`my-archivist.md`)
+  doesn't change: it still never opens a PDF's content, it just now also
+  looks for these three labels alongside the existing bibliography one.
 
 ## MyCoder (deferred)
 

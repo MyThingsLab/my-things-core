@@ -710,5 +710,53 @@
       "counsel_gate_blocked"
     ],
     "depends_on": []
+  },
+  {
+    "tool": "MyFigure",
+    "repo": "my-figure",
+    "package": "myfigure",
+    "title": "extracts figures with captions from PDFs/documents into a cross-referenced index",
+    "added": "2026-07-12",
+    "status": "designed",
+    "backlog_label": "my-figure",
+    "engine_call": "match each detected image region to its nearest caption text and write a one-line description",
+    "ledger_kinds": [
+      "figure_extract"
+    ],
+    "depends_on": [
+      "tool:my-archivist"
+    ]
+  },
+  {
+    "tool": "MyTables",
+    "repo": "my-tables",
+    "package": "mytables",
+    "title": "extracts tables with captions from PDFs/documents into structured (CSV/Markdown) form",
+    "added": "2026-07-12",
+    "status": "designed",
+    "backlog_label": "my-tables",
+    "engine_call": "match each detected table region to its nearest caption text and summarize what the table reports",
+    "ledger_kinds": [
+      "table_extract"
+    ],
+    "depends_on": [
+      "tool:my-archivist"
+    ]
+  },
+  {
+    "tool": "MyEquations",
+    "repo": "my-equations",
+    "package": "myequations",
+    "title": "extracts equations from PDFs/documents and explains what each symbol means",
+    "added": "2026-07-12",
+    "status": "designed",
+    "backlog_label": "my-equations",
+    "engine_call": "transcribe one detected equation region to LaTeX and explain each symbol from surrounding prose",
+    "ledger_kinds": [
+      "equation_extract"
+    ],
+    "depends_on": [
+      "tool:my-archivist"
+    ]
   }
 ]
