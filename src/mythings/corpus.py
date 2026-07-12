@@ -9,6 +9,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from mythings.embed import Embedder, cosine
+
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9_]+")
 
 # An Extractor turns a file into plain text. The default shells out to
@@ -195,7 +197,13 @@ def _idf(freqs: list[dict[str, int]]) -> dict[str, float]:
     return {token: math.log(1 + n / (1 + df)) for token, df in doc_freq.items()}
 
 
-def shortlist(chunks: Iterable[Chunk], query: str, *, top: int = 8) -> list[Chunk]:
+def shortlist(
+    chunks: Iterable[Chunk],
+    query: str,
+    *,
+    top: int = 8,
+    embedder: Embedder | None = None,
+) -> list[Chunk]:
     candidates = list(chunks)
     query_tokens = tokenize(query)
     freqs = [_term_freq(c.text) for c in candidates]
@@ -212,6 +220,14 @@ def shortlist(chunks: Iterable[Chunk], query: str, *, top: int = 8) -> list[Chun
         )
         for tf, c in zip(freqs, candidates, strict=True)
     ]
+    if embedder is not None:
+        # Hybrid: fuse the lexical ranking with a semantic one so a query that
+        # shares no words with the passage (paraphrase, notation, another
+        # language — the failure modes measured in docs/adr/0003) can still
+        # surface it. Opt-in by construction: with no embedder the path below is
+        # byte-for-byte the original lexical behaviour, so wiring it in never
+        # changes a caller that did not ask for it.
+        return _fuse(candidates, query, scored, embedder, top)
     if query_tokens and any(score > 0 for score, _ in scored):
         ranked = sorted(scored, key=lambda item: (-item[0], item[1].doc_id, item[1].ordinal))
         return [c for _, c in ranked[:top]]
@@ -219,6 +235,43 @@ def shortlist(chunks: Iterable[Chunk], query: str, *, top: int = 8) -> list[Chun
     # opening chunks in document order. A weak ranking is still usable, per
     # my-searcher's shortlist(); its mtime fallback is meaningless for chunks.
     return candidates[:top]
+
+
+def _fuse(
+    candidates: list[Chunk],
+    query: str,
+    scored: list[tuple[float, Chunk]],
+    embedder: Embedder,
+    top: int,
+) -> list[Chunk]:
+    if not candidates:
+        return []
+    order = list(range(len(candidates)))
+
+    def tie(i: int) -> tuple[str, int]:
+        return (candidates[i].doc_id, candidates[i].ordinal)
+
+    # Rank every candidate by each signal independently (deterministic
+    # tie-break), including zero-lexical-score chunks — a chunk strong in either
+    # signal should surface, which is the whole point of fusing them.
+    lex_order = sorted(order, key=lambda i: (-scored[i][0], *tie(i)))
+    lex_rank = {i: r for r, i in enumerate(lex_order)}
+
+    vectors = embedder.embed([c.text for c in candidates])
+    query_vector = embedder.embed([query])[0]
+    sims = [cosine(query_vector, v) for v in vectors]
+    vec_order = sorted(order, key=lambda i: (-sims[i], *tie(i)))
+    vec_rank = {i: r for r, i in enumerate(vec_order)}
+
+    # Reciprocal-rank fusion (the standard k=60). Combining rank positions, not
+    # the raw TF-IDF and cosine scores, sidesteps the fact that the two live on
+    # different, incomparable scales — no normalisation constant to tune.
+    k = 60
+    fused = sorted(
+        order,
+        key=lambda i: (-(1.0 / (k + lex_rank[i]) + 1.0 / (k + vec_rank[i])), *tie(i)),
+    )
+    return [candidates[i] for i in fused[:top]]
 
 
 def cite(chunks: Iterable[Chunk], documents: Iterable[Document]) -> list[Citation]:
