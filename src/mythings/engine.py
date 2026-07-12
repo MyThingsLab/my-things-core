@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -16,6 +17,12 @@ from typing import Any, Protocol, runtime_checkable
 # mocked (same pattern as github.Runner/_gh).
 Runner = Callable[[list[str]], str]
 
+# A StreamRunner is the image-path's Runner equivalent: argv plus the stdin
+# text to pipe in (a single stream-json message line), returning raw stdout.
+# Separate from Runner rather than widening it, so every existing `runner=`
+# fake (every caller before images existed) keeps working unchanged.
+StreamRunner = Callable[[list[str], str], str]
+
 
 @dataclass(frozen=True)
 class EngineRequest:
@@ -25,6 +32,11 @@ class EngineRequest:
     # Anything the model must actually see (grounding, candidate lists, a
     # catalog to choose from) goes in `prompt`. See docs/ARCHITECTURE.md.
     context: dict[str, Any] = field(default_factory=dict)
+    # PNG-encoded image bytes to attach (e.g. a cropped PDF figure/equation
+    # region) -- empty for every caller that predates this field. Non-empty
+    # switches ClaudeCLIEngine to the stream-json wire format (see below);
+    # NoopEngine and every other backend just ignores it.
+    images: tuple[bytes, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -51,6 +63,13 @@ def _claude(argv: list[str]) -> str:
     return proc.stdout if proc.returncode == 0 else ""
 
 
+def _claude_stream(argv: list[str], stdin_text: str) -> str:
+    proc = subprocess.run(
+        ["claude", *argv], input=stdin_text, capture_output=True, text=True
+    )
+    return proc.stdout if proc.returncode == 0 else ""
+
+
 # Models routinely wrap JSON replies in a ```json fence despite a system
 # prompt saying not to (verified against claude-haiku-4-5 at low effort).
 # Strip one whole-string fence here so every consumer's json.loads(result.text)
@@ -72,11 +91,21 @@ class ClaudeCLIEngine:
     # EngineResult(text="", ...), same contract shape as NoopEngine's empty
     # reply, so every tool's existing "--summarize degrades gracefully"
     # handling covers this backend for free.
-    def __init__(self, *, model: str | None = None, runner: Runner = _claude) -> None:
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        runner: Runner = _claude,
+        stream_runner: StreamRunner = _claude_stream,
+    ) -> None:
         self._model = model
         self._run = runner
+        self._run_stream = stream_runner
 
     def run(self, request: EngineRequest) -> EngineResult:
+        if request.images:
+            return self._run_multimodal(request)
+
         # --tools as two argv tokens ("--tools", "") makes the CLI's variadic
         # tools-list parser keep consuming the next token too when nothing
         # else with a leading "-" follows (e.g. no --system-prompt) — it
@@ -97,6 +126,64 @@ class ClaudeCLIEngine:
             obj = {}
         text = "" if obj.get("is_error") else _strip_code_fence(obj.get("result", ""))
         return EngineResult(text=text, data=obj)
+
+    def _run_multimodal(self, request: EngineRequest) -> EngineResult:
+        # `-p` alone has no way to attach an image to the positional prompt --
+        # verified against the real CLI (2.1.207): stream-json input/output is
+        # the one documented path that accepts an Anthropic-style content-block
+        # message (text + base64 image) over stdin. Same --tools= disable, so
+        # this stays judgment-only like the text path.
+        argv = [
+            "-p",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
+            "--tools=",
+        ]
+        if request.system:
+            argv += ["--system-prompt", request.system]
+        if self._model:
+            argv += ["--model", self._model]
+
+        content: list[dict[str, Any]] = [{"type": "text", "text": request.prompt}]
+        for image in request.images:
+            content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": base64.b64encode(image).decode("ascii"),
+                    },
+                }
+            )
+        stdin_text = (
+            json.dumps({"type": "user", "message": {"role": "user", "content": content}}) + "\n"
+        )
+
+        raw = self._run_stream(argv, stdin_text)
+        obj = self._last_result_line(raw)
+        text = "" if obj.get("is_error") else _strip_code_fence(obj.get("result", ""))
+        return EngineResult(text=text, data=obj)
+
+    @staticmethod
+    def _last_result_line(raw: str) -> dict[str, Any]:
+        # stream-json output is one JSON object per line (system/assistant/
+        # result/...); the `result` line carries the same result/is_error
+        # shape the text path parses from --output-format json.
+        result: dict[str, Any] = {}
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if obj.get("type") == "result":
+                result = obj
+        return result
 
 
 class CachingEngine:
@@ -124,6 +211,10 @@ class CachingEngine:
                 "system": request.system,
                 "prompt": request.prompt,
                 "context": request.context,
+                # Images are typically kilobytes; hash each rather than
+                # inlining the bytes, same reasoning as corpus.cached_extractor
+                # keying on (size, mtime) instead of file content.
+                "images": [hashlib.sha256(image).hexdigest() for image in request.images],
             },
             sort_keys=True,
             separators=(",", ":"),
