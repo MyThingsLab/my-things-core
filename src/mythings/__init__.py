@@ -14,6 +14,7 @@ from mythings.github import (
     GitHubError,
     Issue,
     PullRequest,
+    app_installation_org,
     github_app_runner,
     github_app_token,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "TesterStore",
     "Turn",
     "Workspace",
+    "app_installation_org",
     "configure_logging",
     "default_get",
     "default_robots_allowed",
