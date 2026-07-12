@@ -1,3 +1,4 @@
+import base64
 import json
 
 from mythings.engine import (
@@ -88,6 +89,85 @@ def test_claude_cli_engine_protocol_compliance() -> None:
     assert isinstance(ClaudeCLIEngine(runner=lambda argv: ""), Engine)
 
 
+class _FakeStreamRunner:
+    def __init__(self, reply: str) -> None:
+        self.calls: list[tuple[list[str], str]] = []
+        self.reply = reply
+
+    def __call__(self, argv: list[str], stdin_text: str) -> str:
+        self.calls.append((argv, stdin_text))
+        return self.reply
+
+
+def _stream_json_reply(**result_fields: object) -> str:
+    lines = [
+        json.dumps({"type": "system", "subtype": "init"}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "x"}]}}),
+        json.dumps({"type": "result", **result_fields}),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def test_claude_cli_engine_switches_to_stream_json_when_images_present() -> None:
+    text_runner = _FakeRunner("should never be called")
+    stream = _FakeStreamRunner(_stream_json_reply(result="a red circle", is_error=False))
+    eng = ClaudeCLIEngine(runner=text_runner, stream_runner=stream)
+
+    result = eng.run(
+        EngineRequest(prompt="describe this", system="be terse", images=(b"\x89PNG...",))
+    )
+
+    assert result == EngineResult(
+        text="a red circle", data={"type": "result", "result": "a red circle", "is_error": False}
+    )
+    assert not text_runner.calls  # the text path's Runner is never invoked
+    argv, stdin_text = stream.calls[0]
+    assert "--input-format" in argv and "stream-json" in argv
+    assert "--output-format" in argv and "stream-json" in argv
+    assert "--tools=" in argv
+    assert "--system-prompt" in argv and "be terse" in argv
+    message = json.loads(stdin_text)
+    content = message["message"]["content"]
+    assert content[0] == {"type": "text", "text": "describe this"}
+    assert content[1]["type"] == "image"
+    assert content[1]["source"]["media_type"] == "image/png"
+    decoded = base64.b64decode(content[1]["source"]["data"])
+    assert decoded == b"\x89PNG..."
+
+
+def test_claude_cli_engine_multimodal_degrades_to_empty_on_is_error() -> None:
+    stream = _FakeStreamRunner(_stream_json_reply(result="partial", is_error=True))
+    eng = ClaudeCLIEngine(runner=_FakeRunner(""), stream_runner=stream)
+    result = eng.run(EngineRequest(prompt="x", images=(b"img",)))
+    assert result.text == ""
+
+
+def test_claude_cli_engine_multimodal_ignores_non_result_lines() -> None:
+    stream = _FakeStreamRunner(_stream_json_reply(result="ok", is_error=False))
+    eng = ClaudeCLIEngine(runner=_FakeRunner(""), stream_runner=stream)
+    result = eng.run(EngineRequest(prompt="x", images=(b"img",)))
+    assert result.text == "ok"
+
+
+def test_claude_cli_engine_multimodal_degrades_on_malformed_stream() -> None:
+    stream = _FakeStreamRunner("not json at all")
+    eng = ClaudeCLIEngine(runner=_FakeRunner(""), stream_runner=stream)
+    result = eng.run(EngineRequest(prompt="x", images=(b"img",)))
+    assert result == EngineResult(text="", data={})
+
+
+def test_claude_cli_engine_multiple_images_all_attached() -> None:
+    stream = _FakeStreamRunner(_stream_json_reply(result="ok", is_error=False))
+    eng = ClaudeCLIEngine(runner=_FakeRunner(""), stream_runner=stream)
+    eng.run(EngineRequest(prompt="x", images=(b"one", b"two")))
+    _, stdin_text = stream.calls[0]
+    content = json.loads(stdin_text)["message"]["content"]
+    images = [c for c in content if c["type"] == "image"]
+    assert len(images) == 2
+    assert base64.b64decode(images[0]["source"]["data"]) == b"one"
+    assert base64.b64decode(images[1]["source"]["data"]) == b"two"
+
+
 def test_noop_is_deterministic_and_takes_no_tokens() -> None:
     eng = NoopEngine(reply="ok")
     req = EngineRequest(prompt="do the thing", system="be terse")
@@ -143,6 +223,18 @@ def test_caching_engine_distinguishes_requests_by_content(tmp_path):
     eng.run(EngineRequest(prompt="define EM", system="different system"))
 
     assert len(delegate.calls) == 3  # each distinct request is billed once
+
+
+def test_caching_engine_distinguishes_requests_by_image(tmp_path):
+    from mythings.engine import CachingEngine
+
+    delegate = _CountingEngine(EngineResult(text="x"))
+    eng = CachingEngine(delegate, tmp_path / "c")
+    eng.run(EngineRequest(prompt="describe", images=(b"one",)))
+    eng.run(EngineRequest(prompt="describe", images=(b"two",)))
+    eng.run(EngineRequest(prompt="describe", images=(b"one",)))  # repeat -> cache hit
+
+    assert len(delegate.calls) == 2
 
 
 def test_caching_engine_isolates_by_tag(tmp_path):

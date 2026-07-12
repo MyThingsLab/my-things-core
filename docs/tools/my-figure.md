@@ -39,9 +39,12 @@ missing, truncated, or generic (e.g. "Figure 3" with no further text):
 "given this image and the surrounding page text, write a one-line
 description of what the figure shows."
 
-- **Input:** the extracted image (as an attachment/base64, mirroring how
-  MyImageProcessor already round-trips image bytes) plus the page's plain
-  text for context. `context = {"page": n, "nearby_text": "..."}`.
+- **Input:** the extracted image, as a PNG-encoded `EngineRequest.images`
+  entry (core#111's addition — `ClaudeCLIEngine` sends it over the CLI's
+  stream-json wire format, the one path that actually attaches an image;
+  MyImageProcessor's own Engine call is text-only and doesn't apply here),
+  plus the page's plain text for context. `context = {"page": n,
+  "nearby_text": "..."}`.
 - **Output:** `data = {"description": str}` — one line, no invention beyond
   what's visible in the image and stated on the page.
 - Against `NoopEngine`: `description=""`; the figure is still indexed with

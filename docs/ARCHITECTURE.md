@@ -75,13 +75,27 @@ separate, opt-in decision, never applied to a safety-critical call (e.g.
 Two clarifications hardened by contract tests (2026-07):
 
 - **`EngineRequest.context` is metadata, not model input.** No backend
-  transmits it: `ClaudeCLIEngine` sends only `system` + `prompt`, and
-  `CachingEngine` folds `context` into its cache key. Anything the model must
-  actually see — grounding, candidate lists, a catalog to choose from —
-  belongs in `prompt` (my-idea's grounded-prompt pattern is the reference).
-  A tool that puts its grounding in `context` ships a call that passes its
-  `NoopEngine` tests and silently sees nothing in production — exactly the
-  degradation the deterministic side of the harness cannot catch on its own.
+  transmits it: `ClaudeCLIEngine` sends only `system` + `prompt` (+ `images`,
+  see below), and `CachingEngine` folds `context` into its cache key. Anything
+  the model must actually see — grounding, candidate lists, a catalog to
+  choose from — belongs in `prompt` (my-idea's grounded-prompt pattern is the
+  reference). A tool that puts its grounding in `context` ships a call that
+  passes its `NoopEngine` tests and silently sees nothing in production —
+  exactly the degradation the deterministic side of the harness cannot catch
+  on its own.
+- **`EngineRequest.images` (added 2026-07-12, MyFigure/MyEquations) is the
+  one non-text input the model actually sees.** A tuple of PNG bytes; empty
+  for every caller that predates this field, so it's additive, not a breaking
+  change. `ClaudeCLIEngine` sends text-only requests exactly as before
+  (`-p ... "<prompt>"`, positional); a non-empty `images` switches it to the
+  one wire format the `claude` CLI actually supports for attaching an image —
+  `--input-format stream-json --output-format stream-json`, an Anthropic
+  content-block message (`{"type": "image", "source": {"type": "base64",
+  "media_type": "image/png", ...}}`) piped over stdin — verified against the
+  real CLI (2.1.207), not assumed. `--tools=` still disables tools, so this
+  stays judgment-only like the text path. `CachingEngine` hashes each image
+  into its key (not the raw bytes, mirroring `corpus.cached_extractor`'s
+  size/mtime keying) so two calls differing only by image never collide.
 - **`MeteredEngine`** wraps any backend and appends one `kind=engine_usage`
   ledger entry per call (cost from the CLI reply's `total_cost_usd`, model,
   duration, reply size), so per-tool Engine spend is reconstructable from the
