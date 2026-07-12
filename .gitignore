@@ -14,3 +14,8 @@ htmlcov/
 *.jsonl.bak
 .mythings/
 .DS_Store
+
+# Claude Code's local scratch worktrees. Not content: committed, they land in a
+# clone as broken gitlinks pointing at repos that do not exist there. A careless
+# `git add -A` swept three of them into a PR before this line existed.
+.claude/worktrees/

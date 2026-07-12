@@ -689,5 +689,21 @@
       "tool:my-server",
       "tool:my-telegram-bot"
     ]
+  },
+  {
+    "tool": "MyCounsel",
+    "repo": "my-counsel",
+    "package": "mycounsel",
+    "title": "pre-publish compliance gate: scans a repo/diff for secrets, personal info, and likely-copyrighted material before a public push",
+    "added": "2026-07-12",
+    "status": "designed",
+    "backlog_label": "my-counsel",
+    "engine_call": "optional: classify a deterministic finding as ok/review/block with a rationale",
+    "ledger_kinds": [
+      "counsel_scan_run",
+      "counsel_finding_flagged",
+      "counsel_gate_blocked"
+    ],
+    "depends_on": []
   }
 ]
