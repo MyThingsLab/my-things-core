@@ -86,6 +86,28 @@ def github_app_token(app_id: str, installation_id: str, private_key_path: str | 
     return token
 
 
+def app_installation_org(app_id: str, installation_id: str, private_key_path: str | Path) -> str:
+    # Lets a caller assert an installation is actually scoped to the org it
+    # expects (e.g. "MyThingsLab") before using its token -- a wrong or stale
+    # --app-installation-id would otherwise mint a working token silently
+    # scoped to the wrong account. Needs the app-level JWT, not an
+    # installation token, since only the App itself can read this.
+    jwt = _mint_app_jwt(app_id, private_key_path)
+    req = urllib.request.Request(
+        f"https://api.github.com/app/installations/{installation_id}",
+        headers={"Authorization": f"Bearer {jwt}", "Accept": "application/vnd.github+json"},
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:  # noqa: S310 -- fixed https:// github API URL
+            obj = json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:300]
+        raise GitHubError(
+            f"failed to read installation {installation_id} ({exc.code}): {detail}"
+        ) from exc
+    return obj["account"]["login"]
+
+
 def github_app_runner(
     app_id: str,
     installation_id: str,

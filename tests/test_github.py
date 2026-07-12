@@ -14,6 +14,7 @@ from mythings.github import (
     _mint_app_jwt,
     _pr_number,
     _rollup_status,
+    app_installation_org,
     github_app_runner,
     github_app_token,
 )
@@ -255,6 +256,38 @@ def test_mint_installation_token_raises_githuberror_on_http_error(
 
     with pytest.raises(GitHubError, match="404"):
         _mint_installation_token("4260739", "145558758", rsa_keypair)
+
+
+def test_app_installation_org_returns_account_login(monkeypatch, rsa_keypair: Path) -> None:
+    body = json.dumps({"account": {"login": "MyThingsLab"}}).encode()
+    captured_req = {}
+
+    def fake_urlopen(req):
+        captured_req["url"] = req.full_url
+        captured_req["headers"] = {k.lower(): v for k, v in req.headers.items()}
+        return _FakeResponse(body)
+
+    monkeypatch.setattr("mythings.github.urllib.request.urlopen", fake_urlopen)
+
+    org = app_installation_org("4260739", "145558758", rsa_keypair)
+
+    assert org == "MyThingsLab"
+    assert captured_req["url"] == "https://api.github.com/app/installations/145558758"
+    assert captured_req["headers"]["authorization"].startswith("Bearer ")
+
+
+def test_app_installation_org_raises_githuberror_on_http_error(
+    monkeypatch, rsa_keypair: Path
+) -> None:
+    def fake_urlopen(req):
+        raise urllib.error.HTTPError(
+            req.full_url, 404, "Not Found", {}, io.BytesIO(b'{"message": "Not Found"}')
+        )
+
+    monkeypatch.setattr("mythings.github.urllib.request.urlopen", fake_urlopen)
+
+    with pytest.raises(GitHubError, match="404"):
+        app_installation_org("4260739", "145558758", rsa_keypair)
 
 
 def test_github_app_runner_mints_once_and_reuses_within_ttl(monkeypatch, rsa_keypair: Path) -> None:
