@@ -107,22 +107,35 @@ repo hand-copied its own fakes, which drifted in naming and behavior.
   git with a recording lambda.
 - Fixtures `clean_git_env` and `attended_env` — **not autouse**.
 
-Opt in from a tool's `tests/conftest.py`:
+How to consume it (the pilots' proven recipes — pick by what the conftest needs):
 
-```python
-pytest_plugins = ("mythings.testing",)
-```
+- **Plain helpers only** (`FakeGh`, `ScriptedEngine`, factories): just import
+  them. No `pytest_plugins` line needed — they're ordinary callables.
+- **Fixtures too, no top-level import in conftest**: declare
+  `pytest_plugins = ("mythings.testing",)` and re-wrap autouse locally:
+
+  ```python
+  @pytest.fixture(autouse=True)
+  def _attended(attended_env: None) -> None: ...
+  ```
+
+- **Fixtures AND top-level imports in the same conftest**: don't combine an
+  import with `pytest_plugins` — the eager import defeats the plugin's
+  assertion rewriting and pytest warns on every run. Re-export the fixture by
+  aliased import instead (pytest registers it under the *attribute* name), and
+  wrap via `getfixturevalue` (ruff F811 rejects the shadowing-param wrapper):
+
+  ```python
+  from mythings.testing import attended_env as _shared_attended_env  # noqa: F401
+
+  @pytest.fixture(autouse=True)
+  def _attended(request: pytest.FixtureRequest) -> None:
+      request.getfixturevalue("_shared_attended_env")
+  ```
 
 This is deliberately *not* a `pytest11` entry point: core is a runtime
 dependency of every tool, and an entry point would auto-load these fixtures
-into every pytest run in the shared venv. The one-line opt-in is greppable and
-scoped. A tool that wants `clean_git_env`/`attended_env` on every test re-wraps
-it locally:
-
-```python
-@pytest.fixture(autouse=True)
-def _attended(attended_env: None) -> None: ...
-```
+into every pytest run in the shared venv. The opt-in is greppable and scoped.
 
 The module imports pytest, so it is test-support only — imported from test
 suites, never from tool runtime code. Rule: **don't hand-roll a fake that
