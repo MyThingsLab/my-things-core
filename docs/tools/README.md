@@ -57,6 +57,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MyDirector | the fleet's control plane: turns the operator's supervisory decision into an action (merge, halt, approve a plan) and explains the fleet's behaviour back to them | "explain why the fleet did this, from its ledger entries and the diff" | [my-director.md](my-director.md) |
 | MySyndicator | applies one change to many repos, one PR each (deterministic fan-out) | none — deterministic | [my-syndicator.md](my-syndicator.md) |
 | MyArchivist | catalogs a personal book/materials collection (physical + digital) into a unified, cross-referenced index | optional: "assign a subject tag + blurb" | [my-archivist.md](my-archivist.md) |
+| MyCartographer | clusters an ingested corpus into named, prerequisite-ordered themes (a topic map) | "label each induced cluster and order the themes into a prerequisite DAG" | [my-cartographer.md](my-cartographer.md) |
 | MySecurity | scans every repo for leaked secrets (full git history) and vulnerable dependencies, opens a redacted issue | optional: "write a remediation summary from these redacted findings" | [my-security.md](my-security.md) |
 | MyScraper | given a URL + a question, fetches the page and extracts structured data | "extract structured data answering this question from this page's text" | [my-scraper.md](my-scraper.md) |
 | MyDashboard | renders the org's one front-page dashboard: fleet grouped into dev-harness / services / casual-development shelves, with live status per tool | optional: "write the two-sentence state-of-the-fleet banner" | [my-dashboard.md](my-dashboard.md) |
@@ -375,6 +376,22 @@ narrative; the manifest is canonical for status/dependency data.
   read as "library" tools) is likely to cause confusion in conversation,
   not because the tools compete for the same job, unlike the my-designer/
   my-fact-check cases above.
+- **MyCartographer closes the study cluster's last open verb — cluster —
+  and is bottom-up where MyUni is top-down.** `mythings.corpus` (ADR 0001)
+  gave the cluster *ingest/extract/search*; `mythings.mastery` (ADR 0002)
+  gave it *learn*; MyUni gave it *decompose a named field*. Nothing yet
+  induces the themes actually **present in a pile of documents** and orders
+  them — [my-cartographer.md](my-cartographer.md) is that tool, built on the
+  corpus seam with the one new capability it lacks (clustering). It is the
+  dual of MyUni, not a duplicate: MyUni is prescriptive ("what a field
+  *should* contain," from the model's knowledge), MyCartographer is
+  descriptive ("what your shelf *does* contain," from the material). It is
+  also distinct from MyGrapher (coarse thematic partition + one naming call
+  vs. graphify's fine-grained, LLM-free entity graph) — same "confirm the
+  corpus and output differ before folding in" check that separated
+  MyWiki/MyKnowledger and my-designer/my-fact-check. Its clustering stays
+  tool-side under the ≥3-caller rule; promote `corpus.vectors`/`corpus.
+  cluster` into core only when MyProfessor/MySyllabus want the same partition.
 - **Decision authority across MyOrchestrator / MyPlanner / MyProjector —
   resolved 2026-07-07.** Adding two more fleet-wide tools risked three
   sources of truth disagreeing about "what happens next." The line:

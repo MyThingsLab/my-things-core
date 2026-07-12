@@ -245,6 +245,20 @@
     "depends_on": []
   },
   {
+    "tool": "MyCartographer",
+    "repo": "my-cartographer",
+    "package": "mycartographer",
+    "title": "clusters an ingested corpus into named, prerequisite-ordered themes (a topic map)",
+    "added": "2026-07-12",
+    "status": "designed",
+    "backlog_label": "my-cartographer",
+    "engine_call": "label each induced cluster and order the themes into a prerequisite DAG",
+    "ledger_kinds": [
+      "topic_map"
+    ],
+    "depends_on": []
+  },
+  {
     "tool": "MyIdea",
     "repo": "my-idea",
     "package": "myidea",
