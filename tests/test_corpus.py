@@ -186,6 +186,49 @@ def test_shortlist_degrades_when_the_query_has_no_usable_tokens() -> None:
     assert shortlist(chunks, "!!! ???", top=2) == chunks[:2]
 
 
+class _StubEmbedder:
+    # Maps exact texts to fixed vectors so a fusion test controls the semantic
+    # signal without a real model — the corpus analog of NoopEngine.
+    def __init__(self, table: dict[str, tuple[float, ...]]) -> None:
+        self._table = table
+
+    def embed(self, texts):
+        return [self._table[t] for t in texts]
+
+
+def test_shortlist_without_embedder_is_unchanged_lexical_behavior() -> None:
+    # The behavior-preserving guarantee: passing no embedder is byte-for-byte
+    # the original lexical path.
+    hit = Chunk(doc_id="d", ordinal=1, text="the EM algorithm maximizes likelihood", start=0, end=1)
+    miss = Chunk(doc_id="d", ordinal=0, text="unrelated prose about kittens", start=1, end=2)
+    assert shortlist([miss, hit], "EM algorithm", top=1) == [hit]
+    assert shortlist([miss, hit], "EM algorithm", top=1, embedder=None) == [hit]
+
+
+def test_shortlist_hybrid_is_deterministic() -> None:
+    q = "anomaly"
+    c0 = Chunk(doc_id="d", ordinal=0, text="alpha beta", start=0, end=1)
+    c1 = Chunk(doc_id="d", ordinal=1, text="gamma delta", start=0, end=1)
+    stub = _StubEmbedder({q: (1.0, 0.0), c0.text: (0.4, 0.6), c1.text: (0.9, 0.1)})
+    first = shortlist([c0, c1], q, top=2, embedder=stub)
+    second = shortlist([c0, c1], q, top=2, embedder=stub)
+    assert first == second
+
+
+def test_shortlist_hybrid_surfaces_a_semantic_match_over_a_lexical_distractor() -> None:
+    # semantic: the real answer, but shares no word with the query.
+    # distractor: carries the query word yet is semantically unrelated.
+    semantic = Chunk(doc_id="d", ordinal=0, text="outliers rare points", start=0, end=1)
+    distractor = Chunk(doc_id="d", ordinal=1, text="anomaly kittens garden", start=0, end=1)
+    stub = _StubEmbedder(
+        {"anomaly": (1.0, 0.0), semantic.text: (1.0, 0.0), distractor.text: (0.0, 1.0)}
+    )
+    # Lexical alone picks the distractor (it has the query token); fusion with
+    # the semantic signal flips the winner to the passage that actually answers.
+    assert shortlist([semantic, distractor], "anomaly", top=1) == [distractor]
+    assert shortlist([semantic, distractor], "anomaly", top=1, embedder=stub) == [semantic]
+
+
 def test_cite_resolves_titles_and_renders_a_marker() -> None:
     doc = _doc("text", doc_id="ghahramani", title="Unsupervised Learning")
     chunks = chunk(doc, target_chars=100)
