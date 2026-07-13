@@ -250,12 +250,24 @@
     "package": "mycartographer",
     "title": "clusters an ingested corpus into named, prerequisite-ordered themes (a topic map)",
     "added": "2026-07-12",
-    "status": "designed",
+    "status": "building",
     "backlog_label": "my-cartographer",
     "engine_call": "label each induced cluster and order the themes into a prerequisite DAG",
     "ledger_kinds": [
       "topic_map"
     ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyEmbedder",
+    "repo": "my-embedder",
+    "package": "myembedder",
+    "title": "open-source embedding backends for mythings.embed, with a local OpenAI-compatible server",
+    "added": "2026-07-13",
+    "status": "building",
+    "backlog_label": "my-embedder",
+    "engine_call": "none \u2014 deterministic",
+    "ledger_kinds": [],
     "depends_on": []
   },
   {
