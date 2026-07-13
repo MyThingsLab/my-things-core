@@ -2,7 +2,7 @@
 tool: MyCartographer
 repo: my-cartographer
 package: mycartographer
-status: designed
+status: building
 added: 2026-07-12
 backlog_label: my-cartographer
 engine_call: label each induced cluster and order the themes into a prerequisite DAG
