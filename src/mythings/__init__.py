@@ -22,6 +22,7 @@ from mythings.isolation import Workspace, in_github_actions
 from mythings.ledger import Ledger, LedgerEntry
 from mythings.logging import configure as configure_logging
 from mythings.logging import log as log_structured
+from mythings.plan import PlanTask, parse, read_plan, ready, reconcile, render, write_plan
 from mythings.policy import ALLOW, Action, Decision, Policy, PolicyResult
 from mythings.projects import ProjectField, ProjectItem, Projects
 from mythings.testers import Session, Tester, TesterStore, Turn
@@ -45,6 +46,7 @@ __all__ = [
     "Ledger",
     "LedgerEntry",
     "NoopEngine",
+    "PlanTask",
     "Policy",
     "PolicyResult",
     "ProjectField",
@@ -66,5 +68,11 @@ __all__ = [
     "github_app_token",
     "in_github_actions",
     "log_structured",
+    "parse",
+    "read_plan",
+    "ready",
+    "reconcile",
+    "render",
     "strip_html",
+    "write_plan",
 ]
