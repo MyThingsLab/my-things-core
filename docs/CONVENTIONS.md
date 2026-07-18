@@ -6,6 +6,15 @@ as `HARNESS.md`. This document explains the reasoning and, crucially, **which
 mechanical gate backs each rule** — because markdown only advises; a gate
 enforces.
 
+**Two archetypes, stop there.** A long-running process (`my-server`,
+`my-telegram-bot`, `my-dashboard`'s serving mode) is not the issue-in/PR-out
+tool shape `harness.md` describes — its own canonical rules live in
+[`src/mythings/service-harness.md`](../src/mythings/service-harness.md).
+Everything below this point describes the tool harness; a service differs
+only where `service-harness.md` says so explicitly. Per #57's own decision:
+stop at two archetypes — a one-off app (`my-raytracer`) is ungoverned, not a
+third template.
+
 ## Two layers, mirrored from runtime
 
 MyThingsLab's runtime has an abstract vocabulary (`my-things-core` contracts) and

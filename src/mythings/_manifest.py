@@ -98,10 +98,38 @@ def _with_frontmatter(text: str, block: str) -> str:
     return block + "\n" + text
 
 
+# The README's "The tools" table is the other hand-maintained duplicate of the
+# manifest (frontmatter blocks were the first, resynced above). Only tools
+# with a design doc get a row — a manifest entry with no docs/tools/<repo>.md
+# (my-guard, MyCoder, ...) has nothing for the "Doc" column to link to and is
+# covered elsewhere in the page (prose, or the "MyCoder (deferred)" stub).
+TABLE_BEGIN = "<!-- manifest:begin -->"
+TABLE_END = "<!-- manifest:end -->"
+
+
+def tools_table(docs_dir: Path, entries: list[ToolEntry] | None = None) -> str:
+    tools = entries if entries is not None else load_tools()
+    rows = [
+        f"| {e.tool} | {e.title} | {e.engine_call} | [{e.repo}.md]({e.repo}.md) |"
+        for e in tools
+        if (docs_dir / f"{e.repo}.md").exists()
+    ]
+    return "\n".join(["| Tool | One line | Engine call | Doc |", "|---|---|---|---|", *rows])
+
+
+def _with_table(text: str, table: str) -> str:
+    start = text.find(TABLE_BEGIN)
+    end = text.find(TABLE_END)
+    if start == -1 or end == -1:
+        raise ValueError(f"README missing {TABLE_BEGIN}/{TABLE_END} markers")
+    return f"{text[: start + len(TABLE_BEGIN)]}\n{table}\n{text[end:]}"
+
+
 def resync(docs_dir: Path, *, check: bool = False) -> tuple[list[str], list[str]]:
     stale: list[str] = []
     fresh: list[str] = []
-    for entry in load_tools():
+    tools = load_tools()
+    for entry in tools:
         doc = docs_dir / f"{entry.repo}.md"
         if not doc.exists():
             continue
@@ -114,13 +142,27 @@ def resync(docs_dir: Path, *, check: bool = False) -> tuple[list[str], list[str]
             if not check:
                 doc.write_text(wanted, encoding="utf-8")
             stale.append(entry.repo)
+
+    readme = docs_dir / "README.md"
+    if readme.exists():
+        text = readme.read_text(encoding="utf-8")
+        wanted = _with_table(text, tools_table(docs_dir, tools))
+        if text == wanted:
+            fresh.append("README")
+        else:
+            if not check:
+                readme.write_text(wanted, encoding="utf-8")
+            stale.append("README")
     return stale, fresh
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m mythings._manifest",
-        description="Re-sync each design doc's frontmatter from the canonical tools manifest.",
+        description=(
+            "Re-sync each design doc's frontmatter, and the README's tools table, "
+            "from the canonical tools manifest."
+        ),
     )
     parser.add_argument(
         "docs_dir", type=Path, help="the docs/tools directory holding the my-*.md design docs"

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from mythings._manifest import STATUSES, ledger_kind_registry, load_tools, resync
+from mythings._manifest import STATUSES, ledger_kind_registry, load_tools, resync, tools_table
 
 DOCS_TOOLS = Path(__file__).parent.parent / "docs" / "tools"
 
@@ -69,10 +69,22 @@ def test_every_design_doc_has_a_manifest_entry() -> None:
 def test_doc_frontmatter_matches_manifest() -> None:
     stale, fresh = resync(DOCS_TOOLS, check=True)
     assert not stale, (
-        f"stale frontmatter in docs/tools: {stale} — "
+        f"stale frontmatter or README table in docs/tools: {stale} — "
         "re-sync with `python -m mythings._manifest docs/tools`"
     )
     assert fresh, "resync matched no docs — wrong docs dir?"
+
+
+def test_tools_table_skips_repos_without_a_design_doc() -> None:
+    table = tools_table(DOCS_TOOLS)
+    assert "my-guard.md" not in table, "my-guard has no design doc; it must not get a row"
+    assert "[my-tester.md](my-tester.md)" in table
+
+
+def test_tools_table_has_no_rows_when_no_entry_has_a_doc() -> None:
+    stub = load_tools(json.dumps([_tool_stub("MyAlpha", "my-alpha", [])]))
+    table = tools_table(DOCS_TOOLS, stub)
+    assert table == "| Tool | One line | Engine call | Doc |\n|---|---|---|---|"
 
 
 def test_shipped_docs_carry_the_historical_banner() -> None:

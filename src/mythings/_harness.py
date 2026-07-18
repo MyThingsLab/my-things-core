@@ -13,6 +13,16 @@ def harness_text() -> str:
     return files("mythings").joinpath("harness.md").read_text(encoding="utf-8")
 
 
+def service_harness_text() -> str:
+    # The long-running-process archetype (my-server, my-telegram-bot,
+    # my-dashboard's serving mode) -- a distinct canonical harness, not a
+    # variant of harness_text(), since its load-bearing invariants genuinely
+    # differ (not issue-triggered, may not open a PR at all). No repo vendors
+    # this yet; revendor()'s sweep stays scoped to HARNESS.md until a
+    # my-service-template exists to vendor a SERVICE_HARNESS.md copy of it.
+    return files("mythings").joinpath("service-harness.md").read_text(encoding="utf-8")
+
+
 # Editing harness.md used to mean hand-copying it into every sibling repo;
 # `python -m mythings._harness <workspace>` does that sweep in one command.
 # Only repos that already vendor a HARNESS.md are touched — it never creates
