@@ -1,6 +1,7 @@
 import base64
 import json
 
+import mythings.engine as engine_module
 from mythings.engine import (
     CachingEngine,
     ClaudeCLIEngine,
@@ -61,6 +62,82 @@ def test_claude_cli_engine_degrades_to_empty_on_nonzero_exit() -> None:
 def test_claude_cli_engine_degrades_to_empty_on_malformed_json() -> None:
     eng = ClaudeCLIEngine(runner=lambda argv: "not json")
     assert eng.run(EngineRequest(prompt="x")) == EngineResult(text="", data={})
+
+
+class _FakeCompletedProcess:
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def test_default_claude_runner_surfaces_stderr_on_nonzero_exit(monkeypatch) -> None:
+    # Regression for #110: a nonzero exit used to collapse to "", making a
+    # directory-triggered CLI failure indistinguishable from "the model
+    # answered with nothing". The default runner must now surface stderr and
+    # the returncode instead of discarding them.
+    monkeypatch.setattr(
+        engine_module.subprocess,
+        "run",
+        lambda *a, **k: _FakeCompletedProcess(1, stdout="", stderr="permission denied"),
+    )
+    raw = engine_module._claude(["-p", "x"])
+    envelope = json.loads(raw)
+    assert envelope == {
+        "type": "result",
+        "is_error": True,
+        "returncode": 1,
+        "stderr": "permission denied",
+    }
+
+
+def test_default_claude_runner_passes_stdout_through_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(
+        engine_module.subprocess,
+        "run",
+        lambda *a, **k: _FakeCompletedProcess(0, stdout='{"result": "ok"}'),
+    )
+    assert engine_module._claude(["-p", "x"]) == '{"result": "ok"}'
+
+
+def test_claude_cli_engine_degrades_but_records_stderr_on_nonzero_exit() -> None:
+    # End-to-end through ClaudeCLIEngine: text still degrades to "" (same
+    # contract as every other failure), but data now carries what actually
+    # went wrong instead of being empty.
+    fake_raw = json.dumps(
+        {"type": "result", "is_error": True, "returncode": 1, "stderr": "permission denied"}
+    )
+    eng = ClaudeCLIEngine(runner=lambda argv: fake_raw)
+    result = eng.run(EngineRequest(prompt="x"))
+    assert result.text == ""
+    assert result.data == {
+        "type": "result",
+        "is_error": True,
+        "returncode": 1,
+        "stderr": "permission denied",
+    }
+
+
+def test_default_claude_stream_runner_surfaces_stderr_on_nonzero_exit(monkeypatch) -> None:
+    monkeypatch.setattr(
+        engine_module.subprocess,
+        "run",
+        lambda *a, **k: _FakeCompletedProcess(1, stdout="", stderr="permission denied"),
+    )
+    raw = engine_module._claude_stream(["-p", "x"], "{}")
+    envelope = json.loads(raw)
+    assert envelope["is_error"] is True
+    assert envelope["stderr"] == "permission denied"
+
+
+def test_claude_cli_engine_multimodal_records_stderr_on_nonzero_exit() -> None:
+    fake_raw = json.dumps(
+        {"type": "result", "is_error": True, "returncode": 1, "stderr": "permission denied"}
+    )
+    eng = ClaudeCLIEngine(runner=lambda argv: "", stream_runner=lambda argv, stdin: fake_raw)
+    result = eng.run(EngineRequest(prompt="x", images=(b"img",)))
+    assert result.text == ""
+    assert result.data["stderr"] == "permission denied"
 
 
 def test_claude_cli_engine_strips_markdown_json_fence_from_result() -> None:

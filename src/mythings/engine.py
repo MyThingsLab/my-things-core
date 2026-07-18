@@ -58,16 +58,28 @@ class NoopEngine:
         return EngineResult(text=self._reply, data={"echo": request.prompt})
 
 
+def _failure_envelope(proc: subprocess.CompletedProcess[str]) -> str:
+    # A nonzero exit means the CLI never got as far as its own is_error/result
+    # JSON envelope -- returning "" here (as this used to) makes that
+    # indistinguishable from "the model answered with nothing", discarding the
+    # one thing (stderr) that could tell them apart. Shape this as a
+    # `"type": "result"` envelope so both ClaudeCLIEngine.run() (text path)
+    # and _last_result_line() (stream path) parse it the same as a real reply.
+    return json.dumps(
+        {"type": "result", "is_error": True, "returncode": proc.returncode, "stderr": proc.stderr}
+    )
+
+
 def _claude(argv: list[str]) -> str:
     proc = subprocess.run(["claude", *argv], capture_output=True, text=True)
-    return proc.stdout if proc.returncode == 0 else ""
+    return proc.stdout if proc.returncode == 0 else _failure_envelope(proc)
 
 
 def _claude_stream(argv: list[str], stdin_text: str) -> str:
     proc = subprocess.run(
         ["claude", *argv], input=stdin_text, capture_output=True, text=True
     )
-    return proc.stdout if proc.returncode == 0 else ""
+    return proc.stdout if proc.returncode == 0 else _failure_envelope(proc)
 
 
 # Models routinely wrap JSON replies in a ```json fence despite a system
