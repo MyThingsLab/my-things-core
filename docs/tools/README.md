@@ -8,8 +8,10 @@ is self-contained; this page only orders and connects them. For the
 step-by-step *how* of turning a doc into a shipped repo, see
 [BUILD_GUIDE.md](BUILD_GUIDE.md). Repo layout: **one repo per tool**,
 confirmed — matching the existing `my-guard` convention, no monorepo. New
-tools scaffold from [mythings-template.md](mythings-template.md), a
-dedicated (not-a-tool) template repo — build that before MyScaffolder.
+tools scaffold from [`my-template`](https://github.com/MyThingsLab/my-template),
+the dedicated (not-a-tool) template repo this line originally proposed as
+[mythings-template.md](mythings-template.md) (now historical) — see
+[`CONVENTIONS.md`](../CONVENTIONS.md#starting-a-new-tool).
 
 The machine-readable fleet registry is
 [`../../src/mythings/tools_manifest.json`](../../src/mythings/tools_manifest.json)
@@ -24,55 +26,62 @@ narrative; the manifest is canonical for status/dependency data.
 
 ## The tools
 
+Generated from [`tools_manifest.json`](../../src/mythings/tools_manifest.json) by
+`python -m mythings._manifest docs/tools` — edit the manifest, not this table.
+MyCoder has no design doc of its own; see the stub below the table instead.
+
+<!-- manifest:begin -->
 | Tool | One line | Engine call | Doc |
 |---|---|---|---|
-| MyOrchestrator | picks the single next unit of work across the whole fleet | optional: "break a tie among top candidates" | [my-orchestrator.md](my-orchestrator.md) |
-| MyTester | writes a test for one uncovered unit | "write a test for this one uncovered unit" | [my-tester.md](my-tester.md) |
+| MyOrchestrator | picks the single next unit of work across the whole fleet | optional: break a tie among top candidates | [my-orchestrator.md](my-orchestrator.md) |
+| MyTester | writes a test for one uncovered unit | write a test for this one uncovered unit | [my-tester.md](my-tester.md) |
 | MyReporter | digests Ledger + dev-ledger into a report | none (optional prose summary) | [my-reporter.md](my-reporter.md) |
-| MySearcher | ranks files relevant to an issue | "rank relevant files for this task" | [my-searcher.md](my-searcher.md) |
-| MyReviewer | flags correctness bugs on an open PR | "does this diff have a correctness bug?" | [my-reviewer.md](my-reviewer.md) |
-| MyGroomer | labels/splits raw issues into ready units | "split/label this issue" | [my-groomer.md](my-groomer.md) |
-| MyTelegramBot | pushes ledger notifications; relays `Policy` `ASK` to a human over Telegram | none | [my-telegram-bot.md](my-telegram-bot.md) |
-| MyScaffolder | bootstraps a new My[X] tool repo from a proposal | "expand a proposal into the four CLAUDE.md seams" | [my-scaffolder.md](my-scaffolder.md) |
-| MyWiki | answers "what happened / why" from *this project's own* ledger history | "answer this question using only these ledger excerpts" | [my-wiki.md](my-wiki.md) |
-| MyKnowledger | answers domain questions from *external* literature (papers/books/web) | "answer this question using only these knowledge-graph excerpts" | [my-knowledger.md](my-knowledger.md) |
-| MyResearcher | discovers external sources live (web + arXiv), writes a cited study brief; orders topics into a study path | "write a study brief from these discovered sources" / "order these researched topics" | [my-researcher.md](my-researcher.md) |
-| MyLibrarian | discovers existing community libraries/CLIs for a task (PyPI/npm/GitHub) and recommends build-vs-buy | "recommend which discovered packages to use, with trade-offs" | [my-librarian.md](my-librarian.md) |
-| MyAdvisor | recommends a course of action with trade-offs | "recommend an answer, with trade-offs" | [my-advisor.md](my-advisor.md) |
+| MySearcher | ranks files relevant to an issue | rank relevant files for this task | [my-searcher.md](my-searcher.md) |
+| MyTelegramBot | pushes ledger notifications; relays Policy ASK to a human over Telegram; captures my-idea from chat | none directly — /idea delegates its one Engine call to MyIdea's own explore() | [my-telegram-bot.md](my-telegram-bot.md) |
 | MyChangelogger | turns ship/fix ledger entries into a CHANGELOG.md section | none | [my-changelogger.md](my-changelogger.md) |
-| MyTodo | curates a TODO.md (per-repo or org-wide roll-up) from open issues + MyPlanner's plan | optional: "prioritise issues into Now/Next/Later" | [my-todo.md](my-todo.md) |
-| MyDriftWatcher | flags cross-repo convention drift | none | [my-drift-watcher.md](my-drift-watcher.md) |
+| MyProjector | keeps the fleet's Project board + tracking issues synced to live repo state | optional: rewrite this card's last/next-step summary | [my-projector.md](my-projector.md) |
+| MyPlanner | produces a priority-ordered, multi-item plan across the whole backlog | required: propose a sequence, with rationale | [my-planner.md](my-planner.md) |
+| MyResearcher | discovers external sources live (web + arXiv), writes a cited study brief | write a study brief from these discovered sources / order these researched topics | [my-researcher.md](my-researcher.md) |
+| MySite | drafts content/design changes for a personal Jekyll site | draft the Jekyll content for this request | [my-site.md](my-site.md) |
+| MyDocs | keeps the fleet's technical-docs site in sync with each tool's README/CLAUDE.md | write/update this tool's docs page from its README + seams | [my-docs.md](my-docs.md) |
+| MyTypster | drafts and compiles a document as typeset Typst source + PDF | draft the Typst source for this content request | [my-typster.md](my-typster.md) |
+| MyPresentation | drafts a slide-by-slide talk outline, then renders it via MyTypster | draft the slide outline + speaker notes | [my-presentation.md](my-presentation.md) |
+| MyUni | decomposes a field of study into a curriculum, one issue per topic | decompose this field into an ordered curriculum | [my-uni.md](my-uni.md) |
+| MyLibrarian | discovers community libraries/CLIs for a task and recommends build-vs-buy | recommend which discovered packages to use, with trade-offs | [my-librarian.md](my-librarian.md) |
+| MyArchivist | catalogs a personal book/materials collection into a unified index | optional: assign a subject tag + blurb | [my-archivist.md](my-archivist.md) |
+| MyCartographer | clusters an ingested corpus into named, prerequisite-ordered themes (a topic map) | label each induced cluster and order the themes into a prerequisite DAG | [my-cartographer.md](my-cartographer.md) |
+| MyIdea | explores a rough idea against the existing fleet and posts a structured brief | required: explore this idea against this fleet | [my-idea.md](my-idea.md) |
+| MyDashboard | renders the org's one front-page dashboard | optional: write the two-sentence state-of-the-fleet banner | [my-dashboard.md](my-dashboard.md) |
+| MyTodo | curates a TODO.md (per-repo or org-wide roll-up) from open issues + the plan | optional: prioritise issues into Now/Next/Later | [my-todo.md](my-todo.md) |
+| MyScraper | given a URL + a question, fetches the page and extracts structured data | extract structured data answering this question from this page's text | [my-scraper.md](my-scraper.md) |
+| MyReviewer | flags correctness bugs on an open PR | does this diff have a correctness bug? | [my-reviewer.md](my-reviewer.md) |
+| MyGroomer | labels/splits raw issues into ready units | split/label this issue | [my-groomer.md](my-groomer.md) |
+| MyScaffolder | bootstraps a new My[X] tool repo from a proposal | expand a proposal into the four CLAUDE.md seams | [my-scaffolder.md](my-scaffolder.md) |
+| MyWiki | answers what-happened/why from this project's own ledger history | answer this question using only these ledger excerpts | [my-wiki.md](my-wiki.md) |
 | MyGrapher | keeps a repo's knowledge graph fresh for other tools to query | none | [my-grapher.md](my-grapher.md) |
-| MyDescriber | writes/improves a PR's title + description after it's opened | "write a PR title + description for this diff" | [my-describer.md](my-describer.md) |
-| MyProjector | keeps the fleet's GitHub Project board + tracking issues synced to live repo state | optional: "rewrite this card's last/next-step summary" | [my-projector.md](my-projector.md) |
-| MyPlanner | produces a priority-ordered, multi-item plan across the whole backlog | required: "propose a sequence, with rationale" | [my-planner.md](my-planner.md) |
-| MySite | drafts content/design changes for a personal Jekyll site (default: `lorenzoliuzzo/lorenzoliuzzo.github.io`) | "draft the Jekyll content for this request" | [my-site.md](my-site.md) |
-| MyDocs | keeps the fleet's technical-docs site (`mythingslab.github.io`) in sync with each tool's README/CLAUDE.md | "write/update this tool's docs page from its README + seams" | [my-docs.md](my-docs.md) |
-| MyTypster | drafts and compiles a document as typeset Typst source + PDF | "draft the Typst source for this content request" | [my-typster.md](my-typster.md) |
-| MyPresentation | drafts a slide-by-slide talk outline, then renders it via MyTypster | "draft the slide outline + speaker notes" | [my-presentation.md](my-presentation.md) |
-| MyUni | decomposes a field of study into a curriculum, opening one issue per topic for MyResearcher | "decompose this field into an ordered curriculum" | [my-uni.md](my-uni.md) |
-| MyProfessor | teaches or quizzes on a topic already in MyKnowledger's corpus | "write a lesson" / "grade this answer" | [my-professor.md](my-professor.md) |
-| MyNews | discovers current sources on a schedule and posts a dated digest since the last run | "write a digest from these newly discovered items" | [my-news.md](my-news.md) |
-| MyConductor | orders the fleet's open PRs into a coherent, dependency-safe merge sequence | "order these PRs into a coherent merge story, within the given constraints" | [my-conductor.md](my-conductor.md) |
-| MyPipeline | declares and drives cross-tool handoffs (workflow DAG) as labeled issues | optional: "choose among multiple workflow steps whose `on` matches the same event" | [my-pipeline.md](my-pipeline.md) |
-| MyDirector | the fleet's control plane: turns the operator's supervisory decision into an action (merge, halt, approve a plan) and explains the fleet's behaviour back to them | "explain why the fleet did this, from its ledger entries and the diff" | [my-director.md](my-director.md) |
-| MySyndicator | applies one change to many repos, one PR each (deterministic fan-out) | none — deterministic | [my-syndicator.md](my-syndicator.md) |
-| MyArchivist | catalogs a personal book/materials collection (physical + digital) into a unified, cross-referenced index | optional: "assign a subject tag + blurb" | [my-archivist.md](my-archivist.md) |
-| MyCartographer | clusters an ingested corpus into named, prerequisite-ordered themes (a topic map) | "label each induced cluster and order the themes into a prerequisite DAG" | [my-cartographer.md](my-cartographer.md) |
-| MySecurity | scans every repo for leaked secrets (full git history) and vulnerable dependencies, opens a redacted issue | optional: "write a remediation summary from these redacted findings" | [my-security.md](my-security.md) |
-| MyScraper | given a URL + a question, fetches the page and extracts structured data | "extract structured data answering this question from this page's text" | [my-scraper.md](my-scraper.md) |
-| MyDashboard | renders the org's one front-page dashboard: fleet grouped into dev-harness / services / casual-development shelves, with live status per tool | optional: "write the two-sentence state-of-the-fleet banner" | [my-dashboard.md](my-dashboard.md) |
-| MyIdea | explores a rough idea against the existing fleet and posts a structured brief (overlaps, contract fit, smallest slice, verdict) on the idea issue | required: "explore this idea against this fleet" | [my-idea.md](my-idea.md) |
-| MyDataAnalysist | given a local CSV, deterministically profiles it and narrates insights + one follow-up analysis | "given a deterministic CSV profile, write a short narrative plus one concrete follow-up analysis" | [my-data-analysist.md](my-data-analysist.md) |
-| MyNotes | extracts tags/topics and a title from a freeform note filed as an issue | "extract 3-7 tags/topics and propose a title for this note" | [my-notes.md](my-notes.md) |
-| MyManimEditor | translates an animation concept into a syntax-valid ManimCE Scene script | "write one ManimCE Scene subclass for this animation concept" | [my-manim-editor.md](my-manim-editor.md) |
-| MySignalProcessor | given a CSV time-series, computes an FFT power spectrum and narrates findings | "narrate FFT/stat findings and suggest one concrete follow-up action" | [my-signal-processor.md](my-signal-processor.md) |
-| MyImageProcessor | given a local image, deterministically profiles it (dimensions/histogram/EXIF) and interprets findings | "interpret this deterministic image profile and suggest one concrete follow-up processing step" | [my-image-processor.md](my-image-processor.md) |
-| MyGuide | the fleet's front door for a non-technical newcomer: a plain-language catalog, wish matching, and a dry-run trial in a playground repo | required: "match a plain-language wish to the fleet catalog" | [my-guide.md](my-guide.md) |
-| MyFigure | extracts figures with captions from PDFs/documents into a cross-referenced index | "match each detected image region to its nearest caption and write a one-line description" | [my-figure.md](my-figure.md) |
-| MyTables | extracts tables with captions from PDFs/documents into structured (CSV/Markdown) form | "match each detected table region to its nearest caption and summarize what it reports" | [my-tables.md](my-tables.md) |
-| MyEquations | extracts equations from PDFs/documents and explains what each symbol means | "transcribe one detected equation region to LaTeX and explain each symbol from surrounding prose" | [my-equations.md](my-equations.md) |
-| MyCoder | issue → diff → PR (the "act" tool) | deferred | see stub below |
+| MyKnowledger | answers domain questions from external literature | answer this question using only these knowledge-graph excerpts | [my-knowledger.md](my-knowledger.md) |
+| MyDriftWatcher | flags cross-repo convention drift | none | [my-drift-watcher.md](my-drift-watcher.md) |
+| MyAdvisor | recommends a course of action with trade-offs | recommend an answer, with trade-offs | [my-advisor.md](my-advisor.md) |
+| MyDescriber | writes/improves a PR's title + description after it's opened | write a PR title + description for this diff | [my-describer.md](my-describer.md) |
+| MyProfessor | teaches or quizzes on a topic already in MyKnowledger's corpus | write a lesson / grade this answer | [my-professor.md](my-professor.md) |
+| MyNews | discovers current sources on a schedule and posts a dated digest | write a digest from these newly discovered items | [my-news.md](my-news.md) |
+| MyConductor | orders the fleet's open PRs into a dependency-safe merge sequence | order these PRs into a coherent merge story, within the given constraints | [my-conductor.md](my-conductor.md) |
+| MyDirector | the fleet's control plane: turns the operator's supervisory decision into an action, and explains the fleet's behaviour back to them | explain why the fleet did this, from its ledger entries and the diff | [my-director.md](my-director.md) |
+| MySyndicator | applies one change to many repos, one PR each | none — deterministic | [my-syndicator.md](my-syndicator.md) |
+| MySecurity | scans every repo for leaked secrets and vulnerable dependencies | optional: write a remediation summary from these redacted findings | [my-security.md](my-security.md) |
+| MyBibliography | discovers canonical citation metadata for a reference request and commits a normalized bibliography entry | resolve a reference request to one canonical candidate, with a citation key | [my-bibliography.md](my-bibliography.md) |
+| MyDataAnalysist | given a local CSV, deterministically profiles it and narrates insights + one follow-up analysis | given a deterministic CSV profile, write a short narrative plus one concrete follow-up analysis | [my-data-analysist.md](my-data-analysist.md) |
+| MyNotes | extracts tags/topics and a title from a freeform note filed as an issue | extract 3-7 tags/topics and propose a title for this note | [my-notes.md](my-notes.md) |
+| MyManimEditor | translates an animation concept into a syntax-valid ManimCE Scene script | write one ManimCE Scene subclass for this animation concept | [my-manim-editor.md](my-manim-editor.md) |
+| MySignalProcessor | given a CSV time-series, computes an FFT power spectrum and narrates findings | narrate FFT/stat findings and suggest one concrete follow-up action | [my-signal-processor.md](my-signal-processor.md) |
+| MyImageProcessor | given a local image, deterministically profiles it (dimensions/histogram/EXIF) and interprets findings | interpret this deterministic image profile and suggest one concrete follow-up processing step | [my-image-processor.md](my-image-processor.md) |
+| MyGuide | the fleet's front door for a non-technical newcomer: a plain-language catalog, wish matching, and a dry-run trial in a playground repo | required: match a plain-language wish to the fleet catalog | [my-guide.md](my-guide.md) |
+| MyCounsel | pre-publish compliance gate: scans a repo/diff for secrets, personal info, and likely-copyrighted material before a public push | optional: classify a deterministic finding as ok/review/block with a rationale | [my-counsel.md](my-counsel.md) |
+| MyFigure | extracts figures with captions from PDFs/documents into a cross-referenced index | match each detected image region to its nearest caption text and write a one-line description | [my-figure.md](my-figure.md) |
+| MyTables | extracts tables with captions from PDFs/documents into structured (CSV/Markdown) form | match each detected table region to its nearest caption text and summarize what the table reports | [my-tables.md](my-tables.md) |
+| MyEquations | extracts equations from PDFs/documents and explains what each symbol means | transcribe one detected equation region to LaTeX and explain each symbol from surrounding prose | [my-equations.md](my-equations.md) |
+| MyPipeline | declares and drives cross-tool handoffs (workflow DAG) as labeled issues | optional: choose among multiple workflow steps whose on matches the same event | [my-pipeline.md](my-pipeline.md) |
+<!-- manifest:end -->
 
 ## Recommended build order
 
@@ -321,11 +330,12 @@ narrative; the manifest is canonical for status/dependency data.
   each affected doc flags it rather than picking silently.
 - **Resolved: dedicated template repo, not copy-from-existing-tool.**
   MyScaffolder and MyDriftWatcher independently raised the same question;
-  see [mythings-template.md](mythings-template.md) — a standalone,
-  never-deployed `MyThingsLab/mythings-template` repo is now the single
-  canonical source both tools depend on. It isn't a `My[X]` tool itself
-  (no Engine call, not issue-driven) and isn't in the build order below;
-  create it before MyScaffolder or MyDriftWatcher's build starts.
+  see [mythings-template.md](mythings-template.md) (historical — the
+  proposal shipped as [`my-template`](https://github.com/MyThingsLab/my-template),
+  not under the `mythings-template` name) — a standalone, never-deployed
+  template repo is the single canonical source both tools depend on. It
+  isn't a `My[X]` tool itself (no Engine call, not issue-driven) and isn't
+  in the build order below.
 - **PR descriptions are a separate concern from opening a PR.** MyDescriber
   enriches an already-open PR's title/body rather than every PR-opening
   tool (MyTester, MyChangelogger, eventually MyCoder) each generating its

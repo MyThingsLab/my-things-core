@@ -58,16 +58,28 @@ class NoopEngine:
         return EngineResult(text=self._reply, data={"echo": request.prompt})
 
 
+def _failure_envelope(proc: subprocess.CompletedProcess[str]) -> str:
+    # A nonzero exit means the CLI never got as far as its own is_error/result
+    # JSON envelope -- returning "" here (as this used to) makes that
+    # indistinguishable from "the model answered with nothing", discarding the
+    # one thing (stderr) that could tell them apart. Shape this as a
+    # `"type": "result"` envelope so both ClaudeCLIEngine.run() (text path)
+    # and _last_result_line() (stream path) parse it the same as a real reply.
+    return json.dumps(
+        {"type": "result", "is_error": True, "returncode": proc.returncode, "stderr": proc.stderr}
+    )
+
+
 def _claude(argv: list[str]) -> str:
     proc = subprocess.run(["claude", *argv], capture_output=True, text=True)
-    return proc.stdout if proc.returncode == 0 else ""
+    return proc.stdout if proc.returncode == 0 else _failure_envelope(proc)
 
 
 def _claude_stream(argv: list[str], stdin_text: str) -> str:
     proc = subprocess.run(
         ["claude", *argv], input=stdin_text, capture_output=True, text=True
     )
-    return proc.stdout if proc.returncode == 0 else ""
+    return proc.stdout if proc.returncode == 0 else _failure_envelope(proc)
 
 
 # Models routinely wrap JSON replies in a ```json fence despite a system
@@ -240,6 +252,48 @@ class CachingEngine:
             tmp.write_text(json.dumps({"text": result.text, "data": result.data}), encoding="utf-8")
             tmp.replace(entry)
         return result
+
+
+class TieredEngine:
+    # Composes an ordered, cheapest-first chain of Engines: the first
+    # non-skipped tier whose result `accept()` approves wins. Same wrapping
+    # style as CachingEngine/MeteredEngine -- takes Engines, is one -- so it
+    # composes freely with both, e.g. TieredEngine([("cheap",
+    # CachingEngine(...)), ("claude", MeteredEngine(ClaudeCLIEngine(), ...))]).
+    #
+    # `accept` is injected because "did this tier succeed" is domain-specific
+    # -- my-tester judges a drafted test differently than a build-supervisor
+    # judges a diff -- core has no business hard-coding that. The default
+    # (bool(r.text)) matches every existing backend's own "empty text means
+    # degrade" convention (ClaudeCLIEngine/NoopEngine).
+    #
+    # `skip` is a plain set of tier names the caller computes however it likes
+    # (e.g. from ledger history of prior identical-failure attempts) --
+    # TieredEngine itself doesn't know what an "issue" or "candidate" is,
+    # keeping it as domain-agnostic as the other two wrappers. Never raises:
+    # if every tier is skipped or none is accepted, it degrades to the last
+    # attempted result (or an untried EngineResult(text="") if none ran),
+    # mirroring every backend's own empty-text-means-degrade contract.
+    def __init__(
+        self,
+        tiers: list[tuple[str, Engine]],
+        *,
+        accept: Callable[[EngineResult], bool] = lambda r: bool(r.text),
+        skip: set[str] = frozenset(),
+    ) -> None:
+        self._tiers = tiers
+        self._accept = accept
+        self._skip = skip
+
+    def run(self, request: EngineRequest) -> EngineResult:
+        last = EngineResult(text="")
+        for name, engine in self._tiers:
+            if name in self._skip:
+                continue
+            last = engine.run(request)
+            if self._accept(last):
+                return last
+        return last
 
 
 class MeteredEngine:
