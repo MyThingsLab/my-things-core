@@ -784,5 +784,19 @@
     "depends_on": [
       "tool:my-archivist"
     ]
+  },
+  {
+    "tool": "MyPipeline",
+    "repo": "my-pipeline",
+    "package": "mypipeline",
+    "title": "declares and drives cross-tool handoffs (workflow DAG) as labeled issues",
+    "added": "2026-07-18",
+    "status": "designed",
+    "backlog_label": "my-pipeline",
+    "engine_call": "optional: choose among multiple workflow steps whose on matches the same event",
+    "ledger_kinds": [
+      "handoff"
+    ],
+    "depends_on": []
   }
 ]

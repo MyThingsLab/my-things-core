@@ -54,6 +54,7 @@ narrative; the manifest is canonical for status/dependency data.
 | MyProfessor | teaches or quizzes on a topic already in MyKnowledger's corpus | "write a lesson" / "grade this answer" | [my-professor.md](my-professor.md) |
 | MyNews | discovers current sources on a schedule and posts a dated digest since the last run | "write a digest from these newly discovered items" | [my-news.md](my-news.md) |
 | MyConductor | orders the fleet's open PRs into a coherent, dependency-safe merge sequence | "order these PRs into a coherent merge story, within the given constraints" | [my-conductor.md](my-conductor.md) |
+| MyPipeline | declares and drives cross-tool handoffs (workflow DAG) as labeled issues | optional: "choose among multiple workflow steps whose `on` matches the same event" | [my-pipeline.md](my-pipeline.md) |
 | MyDirector | the fleet's control plane: turns the operator's supervisory decision into an action (merge, halt, approve a plan) and explains the fleet's behaviour back to them | "explain why the fleet did this, from its ledger entries and the diff" | [my-director.md](my-director.md) |
 | MySyndicator | applies one change to many repos, one PR each (deterministic fan-out) | none — deterministic | [my-syndicator.md](my-syndicator.md) |
 | MyArchivist | catalogs a personal book/materials collection (physical + digital) into a unified, cross-referenced index | optional: "assign a subject tag + blurb" | [my-archivist.md](my-archivist.md) |
@@ -421,6 +422,12 @@ narrative; the manifest is canonical for status/dependency data.
   doesn't compete with MyOrchestrator/MyPlanner. It's the tool that turns the
   cross-repo merge ordering we've been doing by hand (e.g. `my-things-core#29`
   before `my-projector#1`) into a computed, dependency-safe sequence.
+- **MyPipeline sits on a third axis: the handoff axis.** Neither picking work
+  (MyOrchestrator/MyPlanner) nor ordering merges (MyConductor) — MyPipeline is
+  about *what happens automatically once a step finishes*: today `my-archivist`
+  hand-files a `my-bibliography`-labeled issue per new ISBN; MyPipeline
+  generalizes that into a declared workflow DAG any producer/consumer pair can
+  register, without a package-level import between the two tools.
 - **Promote an ordered-selection helper into core — now at three callers.**
   MyPlanner ("propose a sequence"), MyOrchestrator's tie-break ("break a tie
   among top candidates"), and MyConductor ("order these PRs") all implement the
