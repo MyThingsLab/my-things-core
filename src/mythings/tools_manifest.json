@@ -350,11 +350,19 @@
     "package": "mycoder",
     "title": "issue \u2192 diff \u2192 PR (the act tool)",
     "added": "2026-07-05",
-    "status": "building",
+    "status": "shipped",
     "backlog_label": "my-coder",
-    "engine_call": "deferred: write the diff for this issue",
-    "ledger_kinds": [],
-    "depends_on": []
+    "engine_call": "one bounded, tools-enabled headless coding session per issue (the fleet's single exception to the tools-disabled Engine call)",
+    "ledger_kinds": [
+      "code"
+    ],
+    "depends_on": [
+      "core:ledger",
+      "core:policy",
+      "core:engine",
+      "core:github",
+      "core:isolation"
+    ]
   },
   {
     "tool": "MyReviewer",
