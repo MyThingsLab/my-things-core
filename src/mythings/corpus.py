@@ -26,6 +26,13 @@ class Document:
     path: str
     title: str
     text: str
+    # True when `text` extracted suspiciously little relative to the source
+    # PDF's page count -- almost always an image-only scan pdftotext could not
+    # read, not a genuinely short document. ingest() sets this; it never drops
+    # or skips the document, so a sparse Document still joins the corpus, but a
+    # consumer can now tell "this contributed nothing" apart from "this is
+    # legitimately short" instead of the silent empty-but-valid entry before.
+    sparse: bool = False
 
 
 @dataclass(frozen=True)
@@ -103,7 +110,36 @@ def _slug(stem: str) -> str:
     return slug or "doc"
 
 
-def ingest(paths: Iterable[Path], *, extractor: Extractor = extract) -> list[Document]:
+# A PageCounter reports a PDF's page count (or None if it can't be determined),
+# mirroring Extractor's shell-out-to-a-system-binary shape -- same
+# `dependencies = []` reasoning as pdftotext.
+PageCounter = Callable[[Path], int | None]
+
+_PDFINFO_PAGES_RE = re.compile(r"^Pages:\s*(\d+)", re.MULTILINE)
+
+
+def _pdfinfo_pages(path: Path) -> int | None:
+    proc = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return None
+    match = _PDFINFO_PAGES_RE.search(proc.stdout)
+    return int(match.group(1)) if match else None
+
+
+# A PDF this sparse relative to its page count is almost always an image-only
+# scan pdftotext could not read -- real prose runs to hundreds of characters
+# per page at minimum. Deliberately conservative (option 1 from #96: warn/flag,
+# never skip) so a legitimately terse PDF is never misflagged, let alone
+# dropped from the corpus.
+SPARSE_CHARS_PER_PAGE = 10.0
+
+
+def ingest(
+    paths: Iterable[Path],
+    *,
+    extractor: Extractor = extract,
+    page_counter: PageCounter = _pdfinfo_pages,
+) -> list[Document]:
     documents: list[Document] = []
     seen: dict[str, int] = {}
     for path in paths:
@@ -113,7 +149,15 @@ def ingest(paths: Iterable[Path], *, extractor: Extractor = extract) -> list[Doc
         count = seen.get(base, 0)
         seen[base] = count + 1
         doc_id = base if count == 0 else f"{base}-{count + 1}"
-        documents.append(Document(id=doc_id, path=str(path), title=path.stem, text=extractor(path)))
+        text = extractor(path)
+        sparse = False
+        if path.suffix.lower() == ".pdf":
+            pages = page_counter(path)
+            if pages:
+                sparse = (len(text) / pages) < SPARSE_CHARS_PER_PAGE
+        documents.append(
+            Document(id=doc_id, path=str(path), title=path.stem, text=text, sparse=sparse)
+        )
     return documents
 
 
@@ -197,6 +241,27 @@ def _idf(freqs: list[dict[str, int]]) -> dict[str, float]:
     return {token: math.log(1 + n / (1 + df)) for token, df in doc_freq.items()}
 
 
+_PAGE_NUMBER_LINE_RE = re.compile(r"\d+\s*$")
+_DOT_LEADER_RE = re.compile(r"(?:\.\s?){3,}")
+
+
+def _is_boiler_line(line: str) -> bool:
+    # A table-of-contents/index/bibliography line overwhelmingly ends in a bare
+    # page number or a run of dot leaders -- prose almost never does (a
+    # sentence ends in punctuation; a wrapped line still trails a word).
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return bool(_PAGE_NUMBER_LINE_RE.search(stripped)) or bool(_DOT_LEADER_RE.search(stripped))
+
+
+def _boiler_ratio(text: str) -> float:
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return 0.0
+    return sum(1 for ln in lines if _is_boiler_line(ln)) / len(lines)
+
+
 def shortlist(
     chunks: Iterable[Chunk],
     query: str,
@@ -213,9 +278,17 @@ def shortlist(
     # merely name-drops it once, nor from a bibliography entry that happens to
     # carry the words in a cited paper's title. The tf term is log-damped so a
     # chunk cannot win on sheer repetition alone.
+    #
+    # Down-weight (not exclude) by boiler_ratio: a reference-list entry whose
+    # cited title repeats the query words still ranks high on TF-IDF alone
+    # (#90) -- it's navigation text, not prose, so it's scaled toward zero
+    # rather than dropped, since an occasional false positive (a genuine
+    # section header ending in a number) should still be able to win on the
+    # underlying TF-IDF score rather than being silently discarded.
     scored = [
         (
-            sum((1 + math.log(tf[t])) * weights.get(t, 0.0) for t in query_tokens & tf.keys()),
+            sum((1 + math.log(tf[t])) * weights.get(t, 0.0) for t in query_tokens & tf.keys())
+            * (1 - _boiler_ratio(c.text)),
             c,
         )
         for tf, c in zip(freqs, candidates, strict=True)

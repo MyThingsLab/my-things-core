@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from mythings._harness import harness_text, main, revendor
+from mythings._harness import harness_text, main, revendor, service_harness_text
 
 
 def test_harness_text_is_shipped_and_nonempty() -> None:
@@ -9,6 +9,15 @@ def test_harness_text_is_shipped_and_nonempty() -> None:
     # A couple of load-bearing rules must survive any edit.
     assert "PR — never a merge" in text
     assert "isolated from other ventures" in text
+
+
+def test_service_harness_text_is_shipped_and_nonempty() -> None:
+    text = service_harness_text()
+    assert text.startswith("# MyThingsLab service harness")
+    # The invariants that genuinely differ from the tool harness must survive.
+    assert "may not open a pr at all" in text.lower()
+    assert "health/readiness surface" in text
+    assert "is **not** issue-triggered" in text
 
 
 def test_revendor_rewrites_stale_and_skips_fresh(tmp_path: Path) -> None:

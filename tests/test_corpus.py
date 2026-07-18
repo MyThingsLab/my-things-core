@@ -26,6 +26,7 @@ def test_ingest_uses_injected_extractor_and_slugs_ids() -> None:
     docs = ingest(
         [Path("/books/Elements Of Statistical Learning.pdf")],
         extractor=lambda p: "body text",
+        page_counter=lambda p: None,
     )
     assert len(docs) == 1
     assert docs[0].id == "elements-of-statistical-learning"
@@ -37,8 +38,46 @@ def test_ingest_disambiguates_colliding_slugs() -> None:
     docs = ingest(
         [Path("/a/Notes.pdf"), Path("/b/notes.pdf")],
         extractor=lambda p: "x",
+        page_counter=lambda p: None,
     )
     assert [d.id for d in docs] == ["notes", "notes-2"]
+
+
+def test_ingest_flags_a_sparse_scanned_pdf() -> None:
+    # The #96 repro: 908 pages, 908 characters extracted -- ~1 char/page, an
+    # image-only scan pdftotext could not read.
+    docs = ingest(
+        [Path("/books/scanned.pdf")],
+        extractor=lambda p: "x" * 908,
+        page_counter=lambda p: 908,
+    )
+    assert docs[0].sparse is True
+    assert docs[0].text == "x" * 908  # #96: warn/flag, never drop or truncate
+
+
+def test_ingest_does_not_flag_a_normal_pdf_as_sparse() -> None:
+    docs = ingest(
+        [Path("/books/normal.pdf")],
+        extractor=lambda p: "prose " * 500,  # ~3000 chars over 10 pages
+        page_counter=lambda p: 10,
+    )
+    assert docs[0].sparse is False
+
+
+def test_ingest_treats_an_unknown_page_count_as_not_sparse() -> None:
+    # page_counter returning None (pdfinfo unavailable/failed) must not be
+    # mistaken for "confirmed sparse" -- no signal is not a positive signal.
+    docs = ingest(
+        [Path("/books/mystery.pdf")],
+        extractor=lambda p: "x",
+        page_counter=lambda p: None,
+    )
+    assert docs[0].sparse is False
+
+
+def test_ingest_never_flags_a_non_pdf_as_sparse() -> None:
+    docs = ingest([Path("/notes.txt")], extractor=lambda p: "x")
+    assert docs[0].sparse is False
 
 
 def test_cached_extractor_extracts_once_per_unchanged_file(tmp_path: Path) -> None:
@@ -167,6 +206,48 @@ def test_shortlist_downweights_a_token_common_to_every_chunk() -> None:
     ]
 
     assert shortlist([common, *filler, rare], "baum algorithm", top=1) == [rare]
+
+
+def test_shortlist_downweights_a_reference_list_entry_over_the_explaining_section() -> None:
+    # The #90 residual defect: a bibliography entry whose cited title repeats
+    # the query words outranks the section that actually explains the term,
+    # because TF-IDF alone rewards the repetition. boiler_ratio down-weights
+    # navigation/reference-style lines (ending in a bare page number or dot
+    # leaders) rather than excluding them, so the explaining section wins.
+    reference = Chunk(
+        doc_id="d",
+        ordinal=135,
+        text=(
+            "Dempster, A. EM algorithm for mixtures. 1977 39\n"
+            "Neal, R. EM algorithm variational view. 1998 355\n"
+            "Ghahramani, Z. EM algorithm factor analyzers. 1997 89"
+        ),
+        start=0,
+        end=1,
+    )
+    section = Chunk(
+        doc_id="d",
+        ordinal=32,
+        text="the em algorithm alternates an e step and an m step to maximize the likelihood bound",
+        start=0,
+        end=1,
+    )
+
+    assert shortlist([reference, section], "EM algorithm", top=1) == [section]
+
+
+def test_boiler_ratio_leaves_ordinary_prose_at_zero() -> None:
+    from mythings.corpus import _boiler_ratio
+
+    text = "the em algorithm alternates two steps.\nit converges to a local optimum."
+    assert _boiler_ratio(text) == 0.0
+
+
+def test_boiler_ratio_flags_dot_leader_and_page_number_lines() -> None:
+    from mythings.corpus import _boiler_ratio
+
+    text = "Chapter 3 . . . . . . 42\nAppendix B 108\nreal prose about the model"
+    assert _boiler_ratio(text) > 0.5
 
 
 def test_shortlist_scores_a_token_present_in_every_chunk_without_degrading() -> None:

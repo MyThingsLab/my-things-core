@@ -1,5 +1,12 @@
 # mythings-template — design plan
 
+> **Historical.** This design plan's proposal — a dedicated, never-deployed
+> template repo — shipped as [`my-template`](https://github.com/MyThingsLab/my-template),
+> not as a separate `mythings-template` repo; the two names refer to the same
+> resolution. It is **not** kept in sync with the implementation — for current
+> behavior read `my-template`'s own `README.md` / `CLAUDE.md`. Only genuinely
+> cross-tool contracts get a follow-up edit here.
+
 Not a `My[X]` tool — a GitHub **template repo**
 (`MyThingsLab/mythings-template`) that resolves the open question both
 [my-scaffolder.md](my-scaffolder.md) and [my-drift-watcher.md](my-drift-watcher.md)
