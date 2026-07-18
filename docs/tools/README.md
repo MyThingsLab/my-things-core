@@ -28,7 +28,6 @@ narrative; the manifest is canonical for status/dependency data.
 
 Generated from [`tools_manifest.json`](../../src/mythings/tools_manifest.json) by
 `python -m mythings._manifest docs/tools` — edit the manifest, not this table.
-MyCoder has no design doc of its own; see the stub below the table instead.
 
 <!-- manifest:begin -->
 | Tool | One line | Engine call | Doc |
@@ -54,6 +53,7 @@ MyCoder has no design doc of its own; see the stub below the table instead.
 | MyDashboard | renders the org's one front-page dashboard | optional: write the two-sentence state-of-the-fleet banner | [my-dashboard.md](my-dashboard.md) |
 | MyTodo | curates a TODO.md (per-repo or org-wide roll-up) from open issues + the plan | optional: prioritise issues into Now/Next/Later | [my-todo.md](my-todo.md) |
 | MyScraper | given a URL + a question, fetches the page and extracts structured data | extract structured data answering this question from this page's text | [my-scraper.md](my-scraper.md) |
+| MyCoder | issue → diff → PR (the act tool) | one bounded, tools-enabled headless coding session per issue (the fleet's single exception to the tools-disabled Engine call) | [my-coder.md](my-coder.md) |
 | MyReviewer | flags correctness bugs on an open PR | does this diff have a correctness bug? | [my-reviewer.md](my-reviewer.md) |
 | MyGroomer | labels/splits raw issues into ready units | split/label this issue | [my-groomer.md](my-groomer.md) |
 | MyScaffolder | bootstraps a new My[X] tool repo from a proposal | expand a proposal into the four CLAUDE.md seams | [my-scaffolder.md](my-scaffolder.md) |
@@ -506,29 +506,24 @@ MyCoder has no design doc of its own; see the stub below the table instead.
   doesn't change: it still never opens a PDF's content, it just now also
   looks for these three labels alongside the existing bibliography one.
 
-## MyCoder (deferred)
+## MyCoder (shipped)
 
-The "act" tool — issue → diff → PR, i.e. writing the feature/fix itself
-rather than a test, a comment, or a label. Package `mycoder`. Deferred
-because its single Engine call ("write the diff for this issue") is the one
-judgment step `NoopEngine` cannot meaningfully stand in for — a fixed-string
-reply can't produce a working diff, so the tool can be *designed* now but
-can't be *tested* end-to-end (happy path) until a real `Engine` backend
-exists. Revisit once Phase 1 (real backends, cheapest-capable-first per
-`ARCHITECTURE.md`) lands; at that point it inherits the same harness shape
-as the other five, with `Workspace` + `Policy` doing the heaviest lifting
-since it's the only tool that both edits code *and* needs the sandboxing
-that implies.
+The "act" tool — the fleet's **worker**: given one picked issue in a target
+repo, it runs a bounded, sandboxed, tools-enabled headless coding session that
+edits and commits, then opens a **draft PR** (never merges). Package `mycoder`,
+shipped 2026-07-18. It is the fleet's single deliberate exception to the
+single-narrow-Engine-call pattern — its core action is a full `claude -p`
+session, not a tools-disabled `Engine` call — which is exactly why it was
+deferred until a real backend existed. See its design doc
+[`my-coder.md`](my-coder.md).
 
-**"my-renderer" (2026-07-08) is a candidate MyCoder target, not a tool of
-its own.** Proposed by the user as "an example of high-difficulty codebase
-that can be implemented with the fleet" — i.e. a deliberately hard build
-(a renderer, a compiler, whatever's chosen) meant to stress-test the
-fleet's ability to build real software, not a My[X] fleet-management bot.
-It has no issue-driven shape, no single narrow Engine call, no ledger
-`kind` of its own — it's *work for MyCoder to do* once MyCoder exists,
-the same way any other feature request would be. Revisit choosing a
-concrete target once MyCoder is real.
+**A hard target repo (e.g. a renderer) is a MyCoder *target*, not a tool of
+its own.** Proposed by the user as "an example of high-difficulty codebase that
+can be implemented with the fleet" — a deliberately hard build meant to
+stress-test the fleet's ability to build real software, not a My[X]
+fleet-management bot. Such a repo has no issue-driven shape, no narrow Engine
+call, no ledger `kind` of its own — it is *work for MyCoder to do*, the same
+way any other feature request would be.
 
 ## Parked: personal continuous-service tools (2026-07-08)
 
