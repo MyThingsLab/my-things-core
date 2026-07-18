@@ -254,6 +254,48 @@ class CachingEngine:
         return result
 
 
+class TieredEngine:
+    # Composes an ordered, cheapest-first chain of Engines: the first
+    # non-skipped tier whose result `accept()` approves wins. Same wrapping
+    # style as CachingEngine/MeteredEngine -- takes Engines, is one -- so it
+    # composes freely with both, e.g. TieredEngine([("cheap",
+    # CachingEngine(...)), ("claude", MeteredEngine(ClaudeCLIEngine(), ...))]).
+    #
+    # `accept` is injected because "did this tier succeed" is domain-specific
+    # -- my-tester judges a drafted test differently than a build-supervisor
+    # judges a diff -- core has no business hard-coding that. The default
+    # (bool(r.text)) matches every existing backend's own "empty text means
+    # degrade" convention (ClaudeCLIEngine/NoopEngine).
+    #
+    # `skip` is a plain set of tier names the caller computes however it likes
+    # (e.g. from ledger history of prior identical-failure attempts) --
+    # TieredEngine itself doesn't know what an "issue" or "candidate" is,
+    # keeping it as domain-agnostic as the other two wrappers. Never raises:
+    # if every tier is skipped or none is accepted, it degrades to the last
+    # attempted result (or an untried EngineResult(text="") if none ran),
+    # mirroring every backend's own empty-text-means-degrade contract.
+    def __init__(
+        self,
+        tiers: list[tuple[str, Engine]],
+        *,
+        accept: Callable[[EngineResult], bool] = lambda r: bool(r.text),
+        skip: set[str] = frozenset(),
+    ) -> None:
+        self._tiers = tiers
+        self._accept = accept
+        self._skip = skip
+
+    def run(self, request: EngineRequest) -> EngineResult:
+        last = EngineResult(text="")
+        for name, engine in self._tiers:
+            if name in self._skip:
+                continue
+            last = engine.run(request)
+            if self._accept(last):
+                return last
+        return last
+
+
 class MeteredEngine:
     # Wraps any Engine and appends one kind=engine_usage entry per run() to a
     # Ledger, so per-tool Engine spend is reconstructable from the ledger the

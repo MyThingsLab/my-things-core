@@ -10,6 +10,7 @@ from mythings.engine import (
     EngineResult,
     MeteredEngine,
     NoopEngine,
+    TieredEngine,
 )
 
 
@@ -492,3 +493,104 @@ def test_cache_over_meter_bills_and_meters_once(tmp_path) -> None:
 
     assert len(fake.calls) == 1
     assert len(ledger.entries) == 1
+
+
+class _NamedEngine:
+    # A fake tier: returns a scripted result and records whether it ran, so a
+    # skipped/never-reached tier is observable as "never called".
+    def __init__(self, result: EngineResult) -> None:
+        self.result = result
+        self.calls = 0
+
+    def run(self, request: EngineRequest) -> EngineResult:
+        self.calls += 1
+        return self.result
+
+
+def test_tiered_engine_returns_first_accepted_tier() -> None:
+    cheap = _NamedEngine(EngineResult(text=""))
+    expensive = _NamedEngine(EngineResult(text="real answer"))
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)])
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "real answer"
+    assert cheap.calls == 1
+    assert expensive.calls == 1
+
+
+def test_tiered_engine_stops_at_the_first_accepting_tier() -> None:
+    cheap = _NamedEngine(EngineResult(text="good enough"))
+    expensive = _NamedEngine(EngineResult(text="never reached"))
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)])
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "good enough"
+    assert expensive.calls == 0  # cheap tier already satisfied accept()
+
+
+def test_tiered_engine_skips_named_tiers() -> None:
+    cheap = _NamedEngine(EngineResult(text="cheap answer"))
+    expensive = _NamedEngine(EngineResult(text="expensive answer"))
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)], skip={"cheap"})
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "expensive answer"
+    assert cheap.calls == 0
+
+
+def test_tiered_engine_uses_a_custom_accept_callback() -> None:
+    tier_a = _NamedEngine(EngineResult(text="short"))
+    tier_b = _NamedEngine(EngineResult(text="long enough answer"))
+    tiered = TieredEngine(
+        [("a", tier_a), ("b", tier_b)],
+        accept=lambda r: len(r.text) > 10,
+    )
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "long enough answer"
+
+
+def test_tiered_engine_degrades_to_the_last_tier_when_none_accept() -> None:
+    tier_a = _NamedEngine(EngineResult(text=""))
+    tier_b = _NamedEngine(EngineResult(text=""))
+    tiered = TieredEngine([("a", tier_a), ("b", tier_b)])
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == ""
+    assert tier_a.calls == 1
+    assert tier_b.calls == 1
+
+
+def test_tiered_engine_returns_empty_when_every_tier_is_skipped() -> None:
+    tier_a = _NamedEngine(EngineResult(text="unreachable"))
+    tiered = TieredEngine([("a", tier_a)], skip={"a"})
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result == EngineResult(text="")
+    assert tier_a.calls == 0
+
+
+def test_tiered_engine_protocol_compliance() -> None:
+    assert isinstance(TieredEngine([]), Engine)
+
+
+def test_tiered_engine_composes_with_caching_and_metering(tmp_path) -> None:
+    # The doc's motivating composition: a caching/metered expensive tier
+    # behind a cheap deterministic one, same style as CachingEngine(
+    # MeteredEngine(ClaudeCLIEngine(...))).
+    cheap = _NamedEngine(EngineResult(text=""))
+    expensive = CachingEngine(
+        _NamedEngine(EngineResult(text="from claude")), tmp_path / "cache"
+    )
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)])
+
+    first = tiered.run(EngineRequest(prompt="same"))
+    second = tiered.run(EngineRequest(prompt="same"))
+
+    assert first.text == second.text == "from claude"
