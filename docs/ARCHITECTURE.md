@@ -46,6 +46,20 @@ evaluates it to a `PolicyResult` carrying a `Decision`:
 Core defines the types; `MyGuard` provides the rule engine that implements
 `Policy`. This keeps the vocabulary shared and the enforcement swappable.
 
+**The ASK channel is `MyGuard`'s, not a core seam.** An unattended tool that
+hits `ASK` needs somewhere to actually pause and ask a human instead of
+collapsing to `DENY` — `myguard.ask.AskChannel` is that seam: `Guard` runs a
+configured command (`MYTHINGS_ASK_CMD`, read via `ask_channel_from_env()`)
+and reads its exit code (0 = allow, anything else — including a timeout or a
+missing command — = deny). `my-telegram-bot`'s `mytelegrambot ask` is the
+reference implementation of that contract, but `Guard` itself knows nothing
+about *how* the human is reached — a mail script or `read -p` would work
+identically. It lives in `my-guard`, not here, because it's an
+*implementation* of `Policy`, exactly like the rule engine itself — core only
+ever defines the `Decision` vocabulary. Any unattended tool already gets this
+for free by constructing a `Guard` (its default `ask_channel_from_env()`
+picks up `MYTHINGS_ASK_CMD` if set); see `my-guard`'s own docs for the wiring.
+
 ### `engine` — the single LLM seam
 
 `Engine.run(EngineRequest) -> EngineResult` is the **only** place a model is
