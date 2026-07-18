@@ -1,6 +1,7 @@
 import base64
 import json
 
+import mythings.engine as engine_module
 from mythings.engine import (
     CachingEngine,
     ClaudeCLIEngine,
@@ -9,6 +10,7 @@ from mythings.engine import (
     EngineResult,
     MeteredEngine,
     NoopEngine,
+    TieredEngine,
 )
 
 
@@ -60,6 +62,82 @@ def test_claude_cli_engine_degrades_to_empty_on_nonzero_exit() -> None:
 def test_claude_cli_engine_degrades_to_empty_on_malformed_json() -> None:
     eng = ClaudeCLIEngine(runner=lambda argv: "not json")
     assert eng.run(EngineRequest(prompt="x")) == EngineResult(text="", data={})
+
+
+class _FakeCompletedProcess:
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def test_default_claude_runner_surfaces_stderr_on_nonzero_exit(monkeypatch) -> None:
+    # Regression for #110: a nonzero exit used to collapse to "", making a
+    # directory-triggered CLI failure indistinguishable from "the model
+    # answered with nothing". The default runner must now surface stderr and
+    # the returncode instead of discarding them.
+    monkeypatch.setattr(
+        engine_module.subprocess,
+        "run",
+        lambda *a, **k: _FakeCompletedProcess(1, stdout="", stderr="permission denied"),
+    )
+    raw = engine_module._claude(["-p", "x"])
+    envelope = json.loads(raw)
+    assert envelope == {
+        "type": "result",
+        "is_error": True,
+        "returncode": 1,
+        "stderr": "permission denied",
+    }
+
+
+def test_default_claude_runner_passes_stdout_through_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(
+        engine_module.subprocess,
+        "run",
+        lambda *a, **k: _FakeCompletedProcess(0, stdout='{"result": "ok"}'),
+    )
+    assert engine_module._claude(["-p", "x"]) == '{"result": "ok"}'
+
+
+def test_claude_cli_engine_degrades_but_records_stderr_on_nonzero_exit() -> None:
+    # End-to-end through ClaudeCLIEngine: text still degrades to "" (same
+    # contract as every other failure), but data now carries what actually
+    # went wrong instead of being empty.
+    fake_raw = json.dumps(
+        {"type": "result", "is_error": True, "returncode": 1, "stderr": "permission denied"}
+    )
+    eng = ClaudeCLIEngine(runner=lambda argv: fake_raw)
+    result = eng.run(EngineRequest(prompt="x"))
+    assert result.text == ""
+    assert result.data == {
+        "type": "result",
+        "is_error": True,
+        "returncode": 1,
+        "stderr": "permission denied",
+    }
+
+
+def test_default_claude_stream_runner_surfaces_stderr_on_nonzero_exit(monkeypatch) -> None:
+    monkeypatch.setattr(
+        engine_module.subprocess,
+        "run",
+        lambda *a, **k: _FakeCompletedProcess(1, stdout="", stderr="permission denied"),
+    )
+    raw = engine_module._claude_stream(["-p", "x"], "{}")
+    envelope = json.loads(raw)
+    assert envelope["is_error"] is True
+    assert envelope["stderr"] == "permission denied"
+
+
+def test_claude_cli_engine_multimodal_records_stderr_on_nonzero_exit() -> None:
+    fake_raw = json.dumps(
+        {"type": "result", "is_error": True, "returncode": 1, "stderr": "permission denied"}
+    )
+    eng = ClaudeCLIEngine(runner=lambda argv: "", stream_runner=lambda argv, stdin: fake_raw)
+    result = eng.run(EngineRequest(prompt="x", images=(b"img",)))
+    assert result.text == ""
+    assert result.data["stderr"] == "permission denied"
 
 
 def test_claude_cli_engine_strips_markdown_json_fence_from_result() -> None:
@@ -415,3 +493,104 @@ def test_cache_over_meter_bills_and_meters_once(tmp_path) -> None:
 
     assert len(fake.calls) == 1
     assert len(ledger.entries) == 1
+
+
+class _NamedEngine:
+    # A fake tier: returns a scripted result and records whether it ran, so a
+    # skipped/never-reached tier is observable as "never called".
+    def __init__(self, result: EngineResult) -> None:
+        self.result = result
+        self.calls = 0
+
+    def run(self, request: EngineRequest) -> EngineResult:
+        self.calls += 1
+        return self.result
+
+
+def test_tiered_engine_returns_first_accepted_tier() -> None:
+    cheap = _NamedEngine(EngineResult(text=""))
+    expensive = _NamedEngine(EngineResult(text="real answer"))
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)])
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "real answer"
+    assert cheap.calls == 1
+    assert expensive.calls == 1
+
+
+def test_tiered_engine_stops_at_the_first_accepting_tier() -> None:
+    cheap = _NamedEngine(EngineResult(text="good enough"))
+    expensive = _NamedEngine(EngineResult(text="never reached"))
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)])
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "good enough"
+    assert expensive.calls == 0  # cheap tier already satisfied accept()
+
+
+def test_tiered_engine_skips_named_tiers() -> None:
+    cheap = _NamedEngine(EngineResult(text="cheap answer"))
+    expensive = _NamedEngine(EngineResult(text="expensive answer"))
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)], skip={"cheap"})
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "expensive answer"
+    assert cheap.calls == 0
+
+
+def test_tiered_engine_uses_a_custom_accept_callback() -> None:
+    tier_a = _NamedEngine(EngineResult(text="short"))
+    tier_b = _NamedEngine(EngineResult(text="long enough answer"))
+    tiered = TieredEngine(
+        [("a", tier_a), ("b", tier_b)],
+        accept=lambda r: len(r.text) > 10,
+    )
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == "long enough answer"
+
+
+def test_tiered_engine_degrades_to_the_last_tier_when_none_accept() -> None:
+    tier_a = _NamedEngine(EngineResult(text=""))
+    tier_b = _NamedEngine(EngineResult(text=""))
+    tiered = TieredEngine([("a", tier_a), ("b", tier_b)])
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result.text == ""
+    assert tier_a.calls == 1
+    assert tier_b.calls == 1
+
+
+def test_tiered_engine_returns_empty_when_every_tier_is_skipped() -> None:
+    tier_a = _NamedEngine(EngineResult(text="unreachable"))
+    tiered = TieredEngine([("a", tier_a)], skip={"a"})
+
+    result = tiered.run(EngineRequest(prompt="p"))
+
+    assert result == EngineResult(text="")
+    assert tier_a.calls == 0
+
+
+def test_tiered_engine_protocol_compliance() -> None:
+    assert isinstance(TieredEngine([]), Engine)
+
+
+def test_tiered_engine_composes_with_caching_and_metering(tmp_path) -> None:
+    # The doc's motivating composition: a caching/metered expensive tier
+    # behind a cheap deterministic one, same style as CachingEngine(
+    # MeteredEngine(ClaudeCLIEngine(...))).
+    cheap = _NamedEngine(EngineResult(text=""))
+    expensive = CachingEngine(
+        _NamedEngine(EngineResult(text="from claude")), tmp_path / "cache"
+    )
+    tiered = TieredEngine([("cheap", cheap), ("expensive", expensive)])
+
+    first = tiered.run(EngineRequest(prompt="same"))
+    second = tiered.run(EngineRequest(prompt="same"))
+
+    assert first.text == second.text == "from claude"
