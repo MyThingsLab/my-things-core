@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "my-things-core"
-version = "0.0.1"
+version = "1.0.0"
 description = "Core SDK for the MyThingsLab autonomous dev-harness tool line (My[X])."
 authors = [{ name = "Lorenzo Liuzzo", email = "lorenzoliuzzo@outlook.com" }]
 readme = "README.md"
