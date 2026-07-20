@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 from mythings.engine import ClaudeCLIEngine, Engine, EngineRequest, EngineResult, NoopEngine
 from mythings.fetch import (
     FetchResult,
@@ -27,7 +29,7 @@ from mythings.policy import ALLOW, Action, Decision, Policy, PolicyResult
 from mythings.projects import ProjectField, ProjectItem, Projects
 from mythings.testers import Session, Tester, TesterStore, Turn
 
-__version__ = "0.0.1"
+__version__ = version("my-things-core")
 
 __all__ = [
     "ALLOW",

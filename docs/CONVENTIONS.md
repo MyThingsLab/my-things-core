@@ -54,6 +54,9 @@ new tool = filling those.
 | Critical bug halts new dispatch | this doc | `fleet_dispatch.py` / `fleet_cycle.py` check for open `critical`-labelled issues |
 | Tools agree with the core they import | this doc | `python -m mythings._compat --check` in core's CI |
 | Test fakes come from `mythings.testing` | this doc | review: a conftest re-declaring a shipped fake is a bug |
+| v1 repo's version and CHANGELOG agree | `release.md` | `check_version_changelog()` in that repo's own pytest suite |
+| RELEASE.md rules stay in sync | this doc | drift-check test (`RELEASE.md` == canonical), same shape as harness |
+| v1-to-v1 dependency is pinned, not floating | `release.md` | review; `pyproject.toml`/CI install line names an exact tag |
 
 ## Filing bugs
 
@@ -71,10 +74,11 @@ Three severity labels, in every repo:
 
 ## Core-API coherence
 
-Every tool installs core as `my-things-core @ git+…@main` — unpinned, floating.
-That is deliberate (a pin nobody bumps is a lie), but it means the day core
-renames or drops a public symbol, every tool breaks silently, one CI run at a
-time. `python -m mythings._compat` is the gate that makes that impossible:
+Every v0 tool installs core as `my-things-core @ git+…@main` — unpinned,
+floating. That is deliberate (a pin nobody bumps is a lie), but it means the
+day core renames or drops a public symbol, every tool breaks silently, one CI
+run at a time. `python -m mythings._compat` is the gate that makes that
+impossible:
 
 - **Claims.** Each tool records what it needs from core in `tools_manifest.json`
   (`depends_on: ["core:diff", …]`). A **shipped** tool whose claim core no longer
@@ -93,6 +97,29 @@ time. `python -m mythings._compat` is the gate that makes that impossible:
 
 Core's CI runs `--check` (claims + environment). The import scan needs sibling
 checkouts, so it belongs in `fleet_cycle.py`, not in a single repo's CI.
+
+## Release contract (v1 repos)
+
+The floating-`@main` decision above holds for v0 — most of the fleet, where
+build velocity matters more than a stable surface. A small set of repos that
+everything else's safety depends on has graduated to **v1**:
+`my-things-core`, `my-guard`, `my-director`, `my-fleet`, `my-dashboard`,
+`my-reporter`. For these, `@main` pins no longer apply to each other:
+
+- `src/mythings/release.md` (canonical) / `RELEASE.md` (vendored copy in each
+  v1 repo) states semver rules, the deprecation window, and CHANGELOG format.
+  `python -m mythings._release <workspace>` re-vendors it, exactly mirroring
+  `_harness.revendor`.
+- Each v1 repo's `pyproject.toml` `version` and `CHANGELOG.md` must agree —
+  `check_version_changelog()` in `mythings._release`, exercised by a test in
+  that repo's own suite the same way harness drift is checked, not a new CI
+  step.
+- A v1 repo depending on another v1 repo pins the exact tag
+  (`my-things-core @ git+…@v1.0.0`) in both `pyproject.toml` and its CI
+  install line, instead of floating on `@main`. `_compat` keeps running
+  regardless, as defense-in-depth, not as the primary mechanism for that pair.
+- A v1 repo may still float on `@main` for any v0 repo it depends on — the
+  pin requirement is v1-to-v1 only.
 
 ## Shared test fixtures (`mythings.testing`)
 
