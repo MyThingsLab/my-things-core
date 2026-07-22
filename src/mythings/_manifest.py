@@ -29,6 +29,11 @@ class ToolEntry:
     # until the tool is actually deployed somewhere reachable — that's a
     # separate, later decision (hosting, auth, exposure beyond localhost).
     web_app: dict | None = None
+    # Optional, machine-checkable JSON-Schema fragments for the tool's CLI
+    # args / ledger `data` payload. Null until authored — backfilled
+    # opportunistically as a tool is touched, not required fleet-wide.
+    input_schema: dict | None = None
+    output_schema: dict | None = None
 
 
 STATUSES = ("designed", "building", "shipped")

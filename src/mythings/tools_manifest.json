@@ -127,7 +127,87 @@
     ],
     "depends_on": [
       "tool:my-orchestrator"
-    ]
+    ],
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "org": {
+          "type": "string",
+          "default": "MyThingsLab"
+        },
+        "manifest": {
+          "type": "string",
+          "description": "path to tools_manifest.json"
+        },
+        "repo_root": {
+          "type": "string"
+        },
+        "ledger": {
+          "type": "string",
+          "default": ".mythings/ledger.jsonl"
+        },
+        "horizon": {
+          "type": "string",
+          "default": "4w"
+        },
+        "tracking_repo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tracking_issue": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "noop",
+            "claude-cli"
+          ],
+          "default": "noop"
+        }
+      }
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string"
+              },
+              "rationale": {
+                "type": "string"
+              },
+              "horizon": {
+                "type": "string",
+                "enum": [
+                  "next",
+                  "soon",
+                  "later"
+                ]
+              }
+            }
+          }
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "engine_used": {
+          "type": "boolean"
+        }
+      }
+    }
   },
   {
     "tool": "MyResearcher",
@@ -362,7 +442,121 @@
       "core:engine",
       "core:github",
       "core:isolation"
-    ]
+    ],
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "target repo slug owner/name"
+        },
+        "issue": {
+          "type": "integer",
+          "description": "issue number to close"
+        },
+        "source": {
+          "type": "string",
+          "description": "local checkout path of the target repo"
+        },
+        "base": {
+          "type": "string",
+          "default": "main"
+        },
+        "session_runner": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "noop"
+          ],
+          "default": "noop"
+        },
+        "max_budget_usd": {
+          "type": "number",
+          "default": 5.0
+        },
+        "max_turns": {
+          "type": "integer",
+          "default": 60
+        },
+        "session_timeout_s": {
+          "type": "number",
+          "default": 1800.0
+        },
+        "max_attempts": {
+          "type": "integer",
+          "default": 1,
+          "description": "internal checkpoint/resume retries on a recoverable outcome"
+        },
+        "max_total_budget_usd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null
+        },
+        "run_tests": {
+          "type": "boolean",
+          "default": false
+        },
+        "guarded": {
+          "type": "boolean",
+          "default": false,
+          "description": "gate opening the draft PR through myguard.Guard"
+        }
+      },
+      "required": [
+        "repo",
+        "issue"
+      ]
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "success",
+            "needs_review",
+            "no_changes",
+            "failure",
+            "denied"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        },
+        "issue": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pr": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "files_touched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tests_passed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "cost_usd": {
+          "type": "number"
+        },
+        "attempts": {
+          "type": "integer"
+        }
+      }
+    }
   },
   {
     "tool": "MyReviewer",
@@ -518,18 +712,13 @@
     "tool": "MyProfessor",
     "repo": "my-professor",
     "package": "myprofessor",
-    "title": "teaches or quizzes on a topic already in MyKnowledger's corpus",
+    "title": "the learn-loop practice-and-assess step: quizzes and grades one topic from a document corpus",
     "added": "2026-07-08",
-    "status": "designed",
+    "status": "shipped",
     "backlog_label": "my-professor",
-    "engine_call": "write a lesson / grade this answer",
-    "ledger_kinds": [
-      "lesson",
-      "grade"
-    ],
-    "depends_on": [
-      "tool:my-knowledger"
-    ]
+    "engine_call": "one per invocation: quiz draws N questions from excerpts; grade scores a submitted answer against them",
+    "ledger_kinds": [],
+    "depends_on": []
   },
   {
     "tool": "MyNews",
@@ -805,6 +994,82 @@
     "ledger_kinds": [
       "handoff"
     ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyDesigner",
+    "repo": "my-designer",
+    "package": "mydesigner",
+    "title": "design brief filed as an issue -> self-contained HTML+inline-CSS mockup",
+    "added": "2026-07-12",
+    "status": "shipped",
+    "backlog_label": "my-designer",
+    "engine_call": "required: write a self-contained HTML+inline-CSS mockup from the brief",
+    "ledger_kinds": [
+      "mockup"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MySyllabus",
+    "repo": "my-syllabus",
+    "package": "mysyllabus",
+    "title": "the learn-loop decompose step: course program -> ordered masterable topics",
+    "added": "2026-07-11",
+    "status": "shipped",
+    "backlog_label": "my-syllabus",
+    "engine_call": "required: decompose this course program into an ordered list of masterable topics",
+    "ledger_kinds": [],
+    "depends_on": []
+  },
+  {
+    "tool": "MyFlashcards",
+    "repo": "my-flashcards",
+    "package": "myflashcards",
+    "title": "the learn-loop spaced-recall step: build/review/grade flashcard decks",
+    "added": "2026-07-11",
+    "status": "shipped",
+    "backlog_label": "my-flashcards",
+    "engine_call": "one per invocation, only in build: using only these excerpts, write N front/back cards",
+    "ledger_kinds": [],
+    "depends_on": []
+  },
+  {
+    "tool": "MyGrader",
+    "repo": "my-grader",
+    "package": "mygrader",
+    "title": "the learn-loop summative-assessment step: grades a whole mock exam in one pass",
+    "added": "2026-07-11",
+    "status": "shipped",
+    "backlog_label": "my-grader",
+    "engine_call": "exactly one per run: grade each answer against its excerpts, reply per question in order",
+    "ledger_kinds": [],
+    "depends_on": []
+  },
+  {
+    "tool": "MyOffice",
+    "repo": "my-office",
+    "package": "myoffice",
+    "title": "renders the fleet as a physical-virtual raytraced office from the shared ledger",
+    "added": "2026-07-20",
+    "status": "shipped",
+    "backlog_label": "my-office",
+    "engine_call": "optional: the meeting brief behind --brief",
+    "ledger_kinds": [
+      "office_render"
+    ],
+    "depends_on": []
+  },
+  {
+    "tool": "MyArchitect",
+    "repo": "my-architect",
+    "package": "myarchitect",
+    "title": "autonomous objective -> ordered, dependency-tagged task backlog (unattended counterpart to my-director)",
+    "added": "2026-07-18",
+    "status": "building",
+    "backlog_label": "my-architect",
+    "engine_call": "required: synthesize the objective into a dependency-tagged task breakdown (genesis-scaffolded; the Engine call and ledger kind are not yet filled in -- see tool.py)",
+    "ledger_kinds": [],
     "depends_on": []
   }
 ]
