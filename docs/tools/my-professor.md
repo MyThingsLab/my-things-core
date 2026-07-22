@@ -2,15 +2,23 @@
 tool: MyProfessor
 repo: my-professor
 package: myprofessor
-status: designed
+status: shipped
 added: 2026-07-08
 backlog_label: my-professor
-engine_call: write a lesson / grade this answer
-ledger_kinds: [lesson, grade]
-depends_on: [tool:my-knowledger]
+engine_call: one per invocation: quiz draws N questions from excerpts; grade scores a submitted answer against them
+ledger_kinds: []
+depends_on: []
 ---
 
 # MyProfessor — design plan
+
+> **Historical.** This is the pre-build design plan, frozen as of my-professor's
+> first ship. It is **not** kept in sync with the implementation — for current
+> behavior (CLI surface, flags, invariants) read
+> [`my-professor/README.md`](../../../my-professor/README.md) and
+> [`my-professor/CLAUDE.md`](../../../my-professor/CLAUDE.md) in the tool's own
+> repo. Only genuinely cross-tool contracts (a new Engine-seam pattern, a new
+> core dependency) get a follow-up edit here.
 
 ## Purpose
 
