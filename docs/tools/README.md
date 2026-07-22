@@ -63,7 +63,7 @@ Generated from [`tools_manifest.json`](../../src/mythings/tools_manifest.json) b
 | MyDriftWatcher | flags cross-repo convention drift | none | [my-drift-watcher.md](my-drift-watcher.md) |
 | MyAdvisor | recommends a course of action with trade-offs | recommend an answer, with trade-offs | [my-advisor.md](my-advisor.md) |
 | MyDescriber | writes/improves a PR's title + description after it's opened | write a PR title + description for this diff | [my-describer.md](my-describer.md) |
-| MyProfessor | teaches or quizzes on a topic already in MyKnowledger's corpus | write a lesson / grade this answer | [my-professor.md](my-professor.md) |
+| MyProfessor | the learn-loop practice-and-assess step: quizzes and grades one topic from a document corpus | one per invocation: quiz draws N questions from excerpts; grade scores a submitted answer against them | [my-professor.md](my-professor.md) |
 | MyNews | discovers current sources on a schedule and posts a dated digest | write a digest from these newly discovered items | [my-news.md](my-news.md) |
 | MyConductor | orders the fleet's open PRs into a dependency-safe merge sequence | order these PRs into a coherent merge story, within the given constraints | [my-conductor.md](my-conductor.md) |
 | MyDirector | the fleet's control plane: turns the operator's supervisory decision into an action, and explains the fleet's behaviour back to them | explain why the fleet did this, from its ledger entries and the diff | [my-director.md](my-director.md) |
