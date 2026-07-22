@@ -34,6 +34,37 @@ instructions. Per tool, only five seams vary — name, the single Engine call,
 tool invariants, the backlog label, and how to verify it end-to-end. Starting a
 new tool = filling those.
 
+## Planning-layer ownership: my-planner / my-director / my-architect
+
+Three tools produce backlog-shaped output and nothing currently states which
+layer owns what, so this is that statement — not a code change, and not
+arbitration logic for a conflict that hasn't been observed:
+
+- **my-director** is, today, the fleet's only working decomposition path:
+  a human-in-the-loop, interactive interview (what shipped / what's blocked /
+  the ONE critical objective / guardrails) synthesized into one `SessionPlan`
+  — an objective plus ordered task-issues. It reads my-planner's latest plan
+  through the same read-only ledger seam MyTodo uses, as one input to the
+  interview, never by calling my-planner's CLI.
+- **my-architect** is designed to be the *unattended* counterpart — same
+  objective-to-task-DAG shape as my-director's output, for when no human
+  needs to weigh in. As of this writing it is **not yet functional**: the
+  repo is genesis-scaffolded but `tool.py` is still the unfilled
+  `my-template` stub (`tools_manifest.json` marks it `status: building`, not
+  `shipped`, for exactly this reason). Until it's implemented, my-director is
+  the only real decomposition path; treat my-architect's CLAUDE.md as a
+  design spec, not documentation of current behavior.
+- **my-planner** is not a decomposition tool at all — it reads
+  my-orchestrator's ranking via the one-way plan-ledger seam and produces a
+  priority-ordered *sequence* of already-decomposed backlog items. It never
+  calls my-architect's or my-director's CLI, and never invents new task-DAGs
+  of its own.
+
+No arbitration logic exists for my-architect and my-director ever producing
+conflicting plans for the same objective, and none should be built pre-
+emptively. If that conflict is ever actually observed, it is the signal to
+design a precedence rule then — not a problem this document is pre-solving.
+
 ## Rule → gate
 
 | Rule | Advisory (markdown) | Mechanical gate |
