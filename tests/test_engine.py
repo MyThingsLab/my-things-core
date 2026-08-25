@@ -91,6 +91,25 @@ def test_default_claude_runner_surfaces_stderr_on_nonzero_exit(monkeypatch) -> N
     }
 
 
+def test_default_claude_runner_trusts_stdout_json_on_nonzero_exit(monkeypatch) -> None:
+    # E.g. subscription access disabled: the CLI still reaches its own
+    # is_error/result envelope and writes it to stdout with nothing on
+    # stderr, but exits nonzero. The old code discarded that stdout and
+    # replaced it with an empty-stderr failure envelope, losing the one
+    # actionable message the CLI produced. Valid JSON on stdout must win
+    # over the returncode.
+    fake_raw = json.dumps(
+        {"type": "result", "is_error": True, "result": "org access disabled"}
+    )
+    monkeypatch.setattr(
+        engine_module.subprocess,
+        "run",
+        lambda *a, **k: _FakeCompletedProcess(1, stdout=fake_raw, stderr=""),
+    )
+    raw = engine_module._claude(["-p", "x"])
+    assert raw == fake_raw
+
+
 def test_default_claude_runner_passes_stdout_through_on_success(monkeypatch) -> None:
     monkeypatch.setattr(
         engine_module.subprocess,
