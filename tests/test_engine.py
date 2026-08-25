@@ -26,7 +26,7 @@ class _FakeRunner:
 
 def test_claude_cli_engine_builds_argv_and_extracts_result_text() -> None:
     fake = _FakeRunner(json.dumps({"result": "ship it", "is_error": False}))
-    eng = ClaudeCLIEngine(model="claude-sonnet-5", runner=fake)
+    eng = ClaudeCLIEngine(model="claude-sonnet-5", effort="high", runner=fake)
 
     result = eng.run(EngineRequest(prompt="pick one", system="be terse"))
 
@@ -35,6 +35,7 @@ def test_claude_cli_engine_builds_argv_and_extracts_result_text() -> None:
     assert argv[:4] == ["-p", "--output-format", "json", "--tools="]  # one token: tools disabled
     assert "--system-prompt" in argv and "be terse" in argv
     assert "--model" in argv and "claude-sonnet-5" in argv
+    assert "--effort" in argv and "high" in argv
     assert argv[-1] == "pick one"  # prompt passed last, positionally
 
 
@@ -45,6 +46,7 @@ def test_claude_cli_engine_omits_optional_flags_when_unset() -> None:
     argv = fake.calls[0]
     assert "--system-prompt" not in argv
     assert "--model" not in argv
+    assert "--effort" not in argv
     # Regression: with no --system-prompt/--model following, "--tools" as two
     # tokens ("--tools", "") let the CLI's variadic parser swallow this
     # positional prompt too. Must stay the single joined "--tools=" token.
@@ -189,7 +191,9 @@ def _stream_json_reply(**result_fields: object) -> str:
 def test_claude_cli_engine_switches_to_stream_json_when_images_present() -> None:
     text_runner = _FakeRunner("should never be called")
     stream = _FakeStreamRunner(_stream_json_reply(result="a red circle", is_error=False))
-    eng = ClaudeCLIEngine(runner=text_runner, stream_runner=stream)
+    eng = ClaudeCLIEngine(
+        model="claude-sonnet-5", effort="low", runner=text_runner, stream_runner=stream
+    )
 
     result = eng.run(
         EngineRequest(prompt="describe this", system="be terse", images=(b"\x89PNG...",))
@@ -204,6 +208,8 @@ def test_claude_cli_engine_switches_to_stream_json_when_images_present() -> None
     assert "--output-format" in argv and "stream-json" in argv
     assert "--tools=" in argv
     assert "--system-prompt" in argv and "be terse" in argv
+    assert "--model" in argv and "claude-sonnet-5" in argv
+    assert "--effort" in argv and "low" in argv
     message = json.loads(stdin_text)
     content = message["message"]["content"]
     assert content[0] == {"type": "text", "text": "describe this"}
