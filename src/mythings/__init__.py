@@ -20,6 +20,7 @@ from mythings.github import (
     github_app_runner,
     github_app_token,
 )
+from mythings.http import Fetcher, get_json, http_get, with_params
 from mythings.isolation import Workspace, in_github_actions
 from mythings.ledger import Ledger, LedgerEntry
 from mythings.logging import configure as configure_logging
@@ -41,6 +42,7 @@ __all__ = [
     "EngineRequest",
     "EngineResult",
     "FetchResult",
+    "Fetcher",
     "Getter",
     "GitHub",
     "GitHubError",
@@ -66,8 +68,10 @@ __all__ = [
     "default_get",
     "default_robots_allowed",
     "fetch",
+    "get_json",
     "github_app_runner",
     "github_app_token",
+    "http_get",
     "in_github_actions",
     "log_structured",
     "parse",
@@ -76,5 +80,6 @@ __all__ = [
     "reconcile",
     "render",
     "strip_html",
+    "with_params",
     "write_plan",
 ]

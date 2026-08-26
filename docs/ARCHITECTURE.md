@@ -147,6 +147,23 @@ just shared plumbing every tool would otherwise reimplement:
   type, so it composes with any library that already logs through the
   standard library.
 
+- `http` — the API boundary, and the sibling of `fetch`. The split is the whole
+  point: `fetch` reads a *page* politely (robots.txt, HTML stripping, and a
+  degrade-to-`reason` result because a page that cannot be read is a page to
+  skip), while `http` calls a *known endpoint* — Crossref, arXiv, OpenLibrary,
+  PyPI, npm, Tavily — where robots does not apply, the body is already
+  structured, and a non-200 is a fact the caller wants. So `http` **raises**
+  where `fetch` returns `ok=False`: npm's 400 `ERR_TEXT_LENGTH` on an over-long
+  query means "narrow the query", a Crossref 404 means "no such DOI", and
+  collapsing both into an empty body would force every consumer to re-derive
+  the difference.
+
+  Promoted, not designed: `my-researcher`, `my-bibliography`, `my-textbook` and
+  `my-librarian` each carried a byte-identical private `_http` — same
+  signature, same 30s timeout, same urllib audit suppression. `Fetcher` is
+  typed exactly as those four already typed their injected `fetch=` parameter,
+  so adopting the module is an import swap rather than a refactor.
+
 - `testers` — the fleet's only notion of a *second person*. Every other module
   assumes a single principal: `ledger` is one global append-only file, and the
   one tool that authenticates (`my-server`) does it with one shared token. To
