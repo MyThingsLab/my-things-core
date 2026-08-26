@@ -59,27 +59,44 @@ class NoopEngine:
 
 
 def _failure_envelope(proc: subprocess.CompletedProcess[str]) -> str:
-    # A nonzero exit means the CLI never got as far as its own is_error/result
-    # JSON envelope -- returning "" here (as this used to) makes that
-    # indistinguishable from "the model answered with nothing", discarding the
-    # one thing (stderr) that could tell them apart. Shape this as a
-    # `"type": "result"` envelope so both ClaudeCLIEngine.run() (text path)
-    # and _last_result_line() (stream path) parse it the same as a real reply.
+    # A nonzero exit usually means the CLI never got as far as its own
+    # is_error/result JSON envelope -- returning "" here (as this used to)
+    # makes that indistinguishable from "the model answered with nothing",
+    # discarding the one thing (stderr) that could tell them apart. Shape
+    # this as a `"type": "result"` envelope so both ClaudeCLIEngine.run()
+    # (text path) and _last_result_line() (stream path) parse it the same as
+    # a real reply.
     return json.dumps(
         {"type": "result", "is_error": True, "returncode": proc.returncode, "stderr": proc.stderr}
     )
 
 
+def _stdout_or_failure(proc: subprocess.CompletedProcess[str]) -> str:
+    # Some nonzero-exit cases (e.g. an org disabling subscription access) DO
+    # reach the CLI's own JSON envelope on stdout, with nothing on stderr --
+    # _failure_envelope would silently discard that precise, actionable
+    # message and replace it with an empty stderr. Trust stdout whenever it's
+    # valid JSON, regardless of exit code; only synthesize a failure envelope
+    # when stdout isn't usable (crash before any JSON was emitted).
+    if proc.returncode == 0:
+        return proc.stdout
+    try:
+        json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return _failure_envelope(proc)
+    return proc.stdout
+
+
 def _claude(argv: list[str]) -> str:
     proc = subprocess.run(["claude", *argv], capture_output=True, text=True)
-    return proc.stdout if proc.returncode == 0 else _failure_envelope(proc)
+    return _stdout_or_failure(proc)
 
 
 def _claude_stream(argv: list[str], stdin_text: str) -> str:
     proc = subprocess.run(
         ["claude", *argv], input=stdin_text, capture_output=True, text=True
     )
-    return proc.stdout if proc.returncode == 0 else _failure_envelope(proc)
+    return _stdout_or_failure(proc)
 
 
 # Models routinely wrap JSON replies in a ```json fence despite a system
@@ -107,10 +124,15 @@ class ClaudeCLIEngine:
         self,
         *,
         model: str | None = None,
+        effort: str | None = None,
         runner: Runner = _claude,
         stream_runner: StreamRunner = _claude_stream,
     ) -> None:
         self._model = model
+        # Passed straight through to `claude -p --effort <level>` (low/medium/high/
+        # xhigh/max) with no validation here -- same trust level as `model`: an
+        # invalid value is the CLI's own error to report, not this seam's to guess at.
+        self._effort = effort
         self._run = runner
         self._run_stream = stream_runner
 
@@ -129,6 +151,8 @@ class ClaudeCLIEngine:
             argv += ["--system-prompt", request.system]
         if self._model:
             argv += ["--model", self._model]
+        if self._effort:
+            argv += ["--effort", self._effort]
         argv.append(request.prompt)
 
         raw = self._run(argv)
@@ -157,6 +181,8 @@ class ClaudeCLIEngine:
             argv += ["--system-prompt", request.system]
         if self._model:
             argv += ["--model", self._model]
+        if self._effort:
+            argv += ["--effort", self._effort]
 
         content: list[dict[str, Any]] = [{"type": "text", "text": request.prompt}]
         for image in request.images:
