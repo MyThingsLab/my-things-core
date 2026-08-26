@@ -111,6 +111,36 @@ def _strip_code_fence(text: str) -> str:
     return match.group(1) if match else text
 
 
+# ClaudeCLIEngine.run() already strips a whole-string ```json fence via
+# _strip_code_fence above, but models also sometimes add a sentence of
+# preamble/trailing commentary despite a "reply with JSON only" instruction --
+# a variant _strip_code_fence's whole-string match doesn't catch. This was
+# independently duplicated as `_parse_json_object`/`_load_json` in ~19 tool
+# repos (my-flashcards, my-grader, my-professor, my-syllabus, my-archivist,
+# my-bibliography, ...), each pairing a fence-strip with the same
+# first-`{`-to-last-`}` fallback span; promoted here so every EngineResult.text
+# consumer that wants a dict gets the tolerant parse for free.
+_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def parse_json_object(text: str) -> dict[str, Any] | None:
+    stripped = _strip_code_fence(text.strip())
+    if not stripped:
+        return None
+    candidates = [stripped]
+    match = _OBJECT_RE.search(stripped)
+    if match:
+        candidates.append(match.group(0))
+    for candidate in candidates:
+        try:
+            obj = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            return obj
+    return None
+
+
 class ClaudeCLIEngine:
     # Shells out to the Claude Code CLI in headless print mode instead of an
     # SDK: no new dependency, and it reuses whatever `claude` auth is already

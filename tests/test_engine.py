@@ -178,6 +178,32 @@ def test_claude_cli_engine_leaves_unfenced_result_untouched() -> None:
     assert result.text == "plain text"
 
 
+def test_parse_json_object_plain() -> None:
+    assert engine_module.parse_json_object('{"a": 1}') == {"a": 1}
+
+
+def test_parse_json_object_strips_code_fence() -> None:
+    assert engine_module.parse_json_object('```json\n{"a": 1}\n```') == {"a": 1}
+
+
+def test_parse_json_object_extracts_from_preamble_and_trailing_commentary() -> None:
+    text = 'Sure, here you go:\n{"a": 1}\nHope that helps!'
+    assert engine_module.parse_json_object(text) == {"a": 1}
+
+
+def test_parse_json_object_returns_none_for_non_dict_json() -> None:
+    assert engine_module.parse_json_object("[1, 2, 3]") is None
+
+
+def test_parse_json_object_returns_none_when_unparsable() -> None:
+    assert engine_module.parse_json_object("not json at all") is None
+
+
+def test_parse_json_object_returns_none_for_empty_text() -> None:
+    assert engine_module.parse_json_object("") is None
+    assert engine_module.parse_json_object("   ") is None
+
+
 def test_claude_cli_engine_degrades_to_empty_when_is_error() -> None:
     fake = _FakeRunner(json.dumps({"result": "partial garbage", "is_error": True}))
     result = ClaudeCLIEngine(runner=fake).run(EngineRequest(prompt="x"))
