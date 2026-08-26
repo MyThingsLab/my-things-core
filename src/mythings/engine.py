@@ -124,10 +124,15 @@ class ClaudeCLIEngine:
         self,
         *,
         model: str | None = None,
+        effort: str | None = None,
         runner: Runner = _claude,
         stream_runner: StreamRunner = _claude_stream,
     ) -> None:
         self._model = model
+        # Passed straight through to `claude -p --effort <level>` (low/medium/high/
+        # xhigh/max) with no validation here -- same trust level as `model`: an
+        # invalid value is the CLI's own error to report, not this seam's to guess at.
+        self._effort = effort
         self._run = runner
         self._run_stream = stream_runner
 
@@ -146,6 +151,8 @@ class ClaudeCLIEngine:
             argv += ["--system-prompt", request.system]
         if self._model:
             argv += ["--model", self._model]
+        if self._effort:
+            argv += ["--effort", self._effort]
         argv.append(request.prompt)
 
         raw = self._run(argv)
@@ -174,6 +181,8 @@ class ClaudeCLIEngine:
             argv += ["--system-prompt", request.system]
         if self._model:
             argv += ["--model", self._model]
+        if self._effort:
+            argv += ["--effort", self._effort]
 
         content: list[dict[str, Any]] = [{"type": "text", "text": request.prompt}]
         for image in request.images:
