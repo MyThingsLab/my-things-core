@@ -15,15 +15,25 @@ _PATTERNS: dict[str, re.Pattern[str]] = {
     "aws_access_key_id": re.compile(r"AKIA[0-9A-Z]{16}"),
     "github_token": re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}"),
     "slack_token": re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"),
+    # Broad on the middle segment on purpose: the prefix taxonomy (api/oat/
+    # admin) is Anthropic's to change, and a redactor that misses a new
+    # variant is worse than one that occasionally over-redacts.
+    "anthropic_key": re.compile(r"sk-ant-(?:api|oat|admin)[0-9]{0,2}-[A-Za-z0-9_-]{20,}"),
     "private_key_block": re.compile(
         r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"
     ),
     # Catches `api_key = "..."` / `password: '...'` style assignments generic
     # enough to not be one of the named formats above. Requires quotes and a
     # 12+ char value so it doesn't fire on `password = input(...)` or similar.
+    # Second alternative covers the same names in unquoted `KEY=value` shape
+    # (e.g. a `printenv`/`env` dump line) -- anchored to the whole line so an
+    # ordinary short/benign assignment elsewhere can't match.
     "generic_assignment": re.compile(
-        r"(?i)\b(api[_-]?key|secret|token|password|passwd)\b\s*[:=]\s*"
+        r"""\b(api[_-]?key|secret|token|password|passwd)\b\s*[:=]\s*"""
         r"""['"][A-Za-z0-9/_+=\-]{12,}['"]"""
+        r"""|^[A-Za-z_][A-Za-z0-9_]*(?:api[_-]?key|secret|token|password|passwd)"""
+        r"""[A-Za-z0-9_]*\s*=\s*[A-Za-z0-9/_+=.\-]{12,}\s*$""",
+        re.IGNORECASE,
     ),
 }
 
