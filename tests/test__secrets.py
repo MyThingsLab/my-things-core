@@ -20,6 +20,19 @@ def test_scan_text_catches_private_key_block() -> None:
     assert any(f.pattern == "private_key_block" for f in findings)
 
 
+def test_scan_text_catches_anthropic_key_in_printenv_shaped_line() -> None:
+    # The shape a worker session's own `printenv`/`env` allowlisted commands
+    # actually emit: unquoted `NAME=value`, not `key = "value"`.
+    findings = secrets.scan_text("ANTHROPIC_API_KEY=sk-ant-api03-" + "A" * 30)
+    assert any(f.pattern == "anthropic_key" for f in findings)
+
+
+def test_scan_text_catches_all_anthropic_key_prefixes() -> None:
+    for infix in ("api03", "oat01", "admin"):
+        findings = secrets.scan_text(f"CLAUDE_CODE_OAUTH_TOKEN=sk-ant-{infix}-" + "B" * 30)
+        assert any(f.pattern == "anthropic_key" for f in findings), infix
+
+
 def test_scan_text_catches_generic_assignment() -> None:
     findings = secrets.scan_text('password = "supersecretvalue123"')
     assert any(f.pattern == "generic_assignment" for f in findings)
@@ -35,6 +48,21 @@ def test_scan_text_does_not_false_positive_on_short_values() -> None:
     # pattern -- otherwise every `token = "x"` test fixture becomes a false
     # alarm.
     assert secrets.scan_text('token = "short"') == []
+
+
+def test_scan_text_catches_unquoted_env_dump_assignment() -> None:
+    # printenv/env output is unquoted `KEY=value`, which the quoted-only
+    # generic_assignment rule used to let straight through.
+    findings = secrets.scan_text("SOME_SECRET_TOKEN=" + "x" * 20)
+    assert any(f.pattern == "generic_assignment" for f in findings)
+
+
+def test_scan_text_does_not_false_positive_on_ordinary_env_dump_lines() -> None:
+    # An ordinary printenv/env line -- no secret-shaped keyword, or a
+    # short/benign value -- must not trip the widened unquoted rule.
+    assert secrets.scan_text("HOME=/home/worker") == []
+    assert secrets.scan_text("DEBUG=true") == []
+    assert secrets.scan_text("PATH=/usr/local/bin:/usr/bin:/bin") == []
 
 
 def test_added_lines_ignores_context_and_removed_lines() -> None:
