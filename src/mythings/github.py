@@ -169,6 +169,14 @@ class PullRequest:
     url: str
 
 
+@dataclass(frozen=True)
+class Milestone:
+    number: int
+    title: str
+    description: str
+    due_on: str
+
+
 class GitHub:
     def __init__(self, repo: str | None = None, *, runner: Runner = _gh) -> None:
         self.repo = repo
@@ -253,6 +261,68 @@ class GitHub:
         # (label from this list, never invent one).
         raw = json.loads(self._run(self._argv(["label", "list", "--json", "name"])))
         return [obj["name"] for obj in raw]
+
+    def _find_milestone_raw(self, repo: str, title: str) -> dict | None:
+        # state=all so a milestone that's already been closed (goal done, due
+        # date passed) still counts as "exists" for idempotency/progress --
+        # only the default `gh api` GET (no -f fields, so no forced POST) is
+        # needed here. The list response already carries open_issues/
+        # closed_issues per milestone, so milestone_progress needs no second
+        # request.
+        raw = json.loads(self._run(["api", f"repos/{repo}/milestones?state=all&per_page=100"]))
+        for obj in raw:
+            if obj["title"] == title:
+                return obj
+        return None
+
+    def milestone_create(
+        self, repo: str, title: str, due_on: str, description: str
+    ) -> Milestone:
+        # Idempotent on title -- a goal's weekly milestone gets re-created
+        # every time its owning tool starts a fresh session; the second call
+        # must return the existing milestone rather than erroring or
+        # duplicating it.
+        existing = self._find_milestone_raw(repo, title)
+        if existing is not None:
+            return Milestone(
+                number=existing["number"],
+                title=existing["title"],
+                description=existing.get("description") or "",
+                due_on=existing.get("due_on") or "",
+            )
+        argv = [
+            "api",
+            f"repos/{repo}/milestones",
+            "-X",
+            "POST",
+            "-f",
+            f"title={title}",
+            "-f",
+            f"description={description}",
+            "-f",
+            f"due_on={due_on}",
+        ]
+        obj = json.loads(self._run(argv))
+        return Milestone(
+            number=obj["number"],
+            title=obj["title"],
+            description=obj.get("description") or "",
+            due_on=obj.get("due_on") or "",
+        )
+
+    def milestone_assign(self, repo: str, issue: int, title: str) -> None:
+        # `gh issue edit --milestone` takes the milestone by title directly,
+        # so no number lookup is needed here (unlike _find_milestone's use
+        # for create/progress, which go through the REST API instead).
+        self._run(["issue", "edit", str(issue), "--milestone", title, "--repo", repo])
+
+    def milestone_progress(self, repo: str, title: str) -> tuple[int, int, str]:
+        raw = self._find_milestone_raw(repo, title)
+        if raw is None:
+            raise GitHubError(f"no milestone titled {title!r} in {repo}")
+        closed = raw.get("closed_issues", 0)
+        total = closed + raw.get("open_issues", 0)
+        return closed, total, raw.get("due_on") or ""
 
     def repo_list(self, org: str, *, limit: int = 1000) -> list[str]:
         # Every repo under an org, as `owner/name` slugs. Org-wide, so it does
