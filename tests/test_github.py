@@ -11,6 +11,7 @@ from mythings.github import (
     CIStatus,
     GitHub,
     GitHubError,
+    Milestone,
     _mint_app_jwt,
     _pr_number,
     _rollup_status,
@@ -392,6 +393,121 @@ def test_list_labels_flattens_names() -> None:
     assert gh.list_labels() == ["bug", "core-contract"]
     assert fake.calls[0][:2] == ["label", "list"]
     assert fake.calls[0][-2:] == ["--repo", "o/r"]
+
+
+def test_milestone_create_returns_existing_without_posting() -> None:
+    payload = json.dumps(
+        [
+            {
+                "number": 5,
+                "title": "goal/cad-foundation",
+                "description": "done when core has milestone helpers",
+                "due_on": "2026-09-13T00:00:00Z",
+            }
+        ]
+    )
+    fake = FakeGh(payload)
+
+    milestone = GitHub(runner=fake).milestone_create(
+        "o/r", "goal/cad-foundation", "2026-09-13T00:00:00Z", "done when core has milestone helpers"
+    )
+
+    assert milestone == Milestone(
+        number=5,
+        title="goal/cad-foundation",
+        description="done when core has milestone helpers",
+        due_on="2026-09-13T00:00:00Z",
+    )
+    # Idempotent: only the lookup happened, no create (POST) call was made.
+    assert len(fake.calls) == 1
+    assert fake.calls[0][:2] == ["api", "repos/o/r/milestones?state=all&per_page=100"]
+
+
+def test_milestone_create_posts_when_absent() -> None:
+    replies = iter(
+        [
+            "[]",
+            json.dumps(
+                {
+                    "number": 9,
+                    "title": "goal/cad-foundation",
+                    "description": "d",
+                    "due_on": "2026-09-13T00:00:00Z",
+                }
+            ),
+        ]
+    )
+    calls: list[list[str]] = []
+
+    def fake(argv: list[str]) -> str:
+        calls.append(argv)
+        return next(replies)
+
+    milestone = GitHub(runner=fake).milestone_create(
+        "o/r", "goal/cad-foundation", "2026-09-13T00:00:00Z", "d"
+    )
+
+    assert milestone == Milestone(
+        number=9, title="goal/cad-foundation", description="d", due_on="2026-09-13T00:00:00Z"
+    )
+    assert len(calls) == 2
+    create_argv = calls[1]
+    assert create_argv[:3] == ["api", "repos/o/r/milestones", "-X"]
+    assert "-f" in create_argv and "title=goal/cad-foundation" in create_argv
+    assert "due_on=2026-09-13T00:00:00Z" in create_argv
+    assert "description=d" in create_argv
+
+
+def test_milestone_assign_uses_issue_edit_with_milestone_flag() -> None:
+    fake = FakeGh("")
+    GitHub(runner=fake).milestone_assign("o/r", 7, "goal/cad-foundation")
+
+    argv = fake.calls[0]
+    assert argv == ["issue", "edit", "7", "--milestone", "goal/cad-foundation", "--repo", "o/r"]
+
+
+def test_milestone_progress_reads_closed_and_total() -> None:
+    payload = json.dumps(
+        [
+            {
+                "title": "goal/x",
+                "closed_issues": 3,
+                "open_issues": 2,
+                "due_on": "2026-09-13T00:00:00Z",
+            }
+        ]
+    )
+    fake = FakeGh(payload)
+
+    closed, total, due_on = GitHub(runner=fake).milestone_progress("o/r", "goal/x")
+
+    assert (closed, total, due_on) == (3, 5, "2026-09-13T00:00:00Z")
+
+
+def test_milestone_progress_on_empty_milestone_returns_zeros_not_a_crash() -> None:
+    payload = json.dumps(
+        [
+            {
+                "title": "goal/x",
+                "closed_issues": 0,
+                "open_issues": 0,
+                "due_on": "2026-09-13T00:00:00Z",
+            }
+        ]
+    )
+    fake = FakeGh(payload)
+
+    assert GitHub(runner=fake).milestone_progress("o/r", "goal/x") == (
+        0,
+        0,
+        "2026-09-13T00:00:00Z",
+    )
+
+
+def test_milestone_progress_raises_when_title_not_found() -> None:
+    fake = FakeGh("[]")
+    with pytest.raises(GitHubError):
+        GitHub(runner=fake).milestone_progress("o/r", "goal/missing")
 
 
 def test_repo_list_returns_slugs_without_repo_flag() -> None:
