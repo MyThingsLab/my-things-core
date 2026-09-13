@@ -1,1 +1,2 @@
 {"data":{"session":"2026-09-13"},"detail":"Add get_issue, find_open_pr, comment to GitHub, build_engine_from_args to engine, and BaseToolRunner to tool","kind":"build","outcome":"success","tool":"claude-code","ts":"2026-09-13T21:19:07Z"}
+{"data":{"session":"2026-09-13"},"detail":"Use obj.get('url', '') in GitHub.get_issue to handle optional url key safely","kind":"fix","outcome":"success","tool":"claude-code","ts":"2026-09-13T21:25:16Z"}

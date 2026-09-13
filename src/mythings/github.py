@@ -248,7 +248,7 @@ class GitHub:
             number=obj["number"],
             title=obj["title"],
             body=obj.get("body", "") or "",
-            url=obj["url"],
+            url=obj.get("url", "") or "",
             labels=[lbl["name"] for lbl in obj.get("labels", [])],
         )
 
