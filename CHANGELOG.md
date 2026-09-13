@@ -5,6 +5,16 @@ All notable changes to `my-things-core` are documented here. Format follows
 [semver](https://semver.org/), per the rules in `src/mythings/release.md`
 (see `docs/CONVENTIONS.md` for the reasoning).
 
+## [1.5.0] - 2026-09-13
+
+**Added — `mythings.graph`**, deterministic property graph for code, documentation,
+and CAD ephemeral worker context. Provides a zero-dependency SQLite-backed relational
+substrate (`CodebaseGraph`), recursive CTE graph traversals (`neighbors`,
+`k_hop_subgraph`, `blast_radius`), Python AST extraction (`PythonAstExtractor`),
+Markdown AST extraction and symbol cross-linking (`MarkdownExtractor`), and
+Agent Context Pack generation (`render_context_pack`) to constrain worker blast radius.
+Closes #165, #166, #167.
+
 ## [1.4.0] - 2026-09-13
 
 **Added — `labels.escalate(labels)`**, the filing-time counterpart to
