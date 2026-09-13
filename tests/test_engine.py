@@ -8,6 +8,7 @@ from mythings.engine import (
     Engine,
     EngineRequest,
     EngineResult,
+    GeminiCLIEngine,
     MeteredEngine,
     NoopEngine,
     TieredEngine,
@@ -645,3 +646,73 @@ def test_tiered_engine_composes_with_caching_and_metering(tmp_path) -> None:
     second = tiered.run(EngineRequest(prompt="same"))
 
     assert first.text == second.text == "from claude"
+
+
+def test_gemini_cli_engine_builds_argv_and_extracts_result_text() -> None:
+    fake = _FakeRunner('{"response": "gemini reply", "status": "SUCCESS"}')
+    eng = GeminiCLIEngine(model="gemini-2.5-pro", effort="high", runner=fake)
+
+    res = eng.run(EngineRequest(prompt="test prompt"))
+
+    assert res.text == "gemini reply"
+    assert res.data["status"] == "SUCCESS"
+    assert len(fake.calls) == 1
+    argv = fake.calls[0]
+    expected = [
+        "-p",
+        "test prompt",
+        "--output-format",
+        "json",
+        "--model",
+        "gemini-2.5-pro",
+        "--effort",
+        "high",
+    ]
+    assert argv == expected
+
+
+def test_gemini_cli_engine_omits_optional_flags_when_unset() -> None:
+    fake = _FakeRunner('{"result": "ok"}')
+    eng = GeminiCLIEngine(runner=fake)
+    res = eng.run(EngineRequest(prompt="simple"))
+    assert res.text == "ok"
+    assert fake.calls[0] == ["-p", "simple", "--output-format", "json"]
+
+
+def test_gemini_cli_engine_degrades_to_empty_on_error() -> None:
+    fake = _FakeRunner('{"status": "ERROR", "error": "something failed"}')
+    eng = GeminiCLIEngine(runner=fake)
+    res = eng.run(EngineRequest(prompt="fail"))
+    assert res.text == ""
+    assert res.data["status"] == "ERROR"
+
+    fake_invalid = _FakeRunner("invalid json")
+    eng_invalid = GeminiCLIEngine(runner=fake_invalid)
+    assert eng_invalid.run(EngineRequest(prompt="fail")).text == ""
+
+
+def test_gemini_cli_engine_strips_markdown_fence() -> None:
+    raw = '{"response": "```json\\n{\\"key\\": \\"val\\"}\\n```", "status": "SUCCESS"}'
+    fake = _FakeRunner(raw)
+    eng = GeminiCLIEngine(runner=fake)
+    res = eng.run(EngineRequest(prompt="json"))
+    assert res.text == '{"key": "val"}'
+
+
+def test_gemini_cli_engine_protocol_compliance() -> None:
+    assert isinstance(GeminiCLIEngine(runner=lambda argv: ""), Engine)
+
+
+def test_gemini_cli_engine_multimodal() -> None:
+    def stream_runner(argv: list[str], stdin_text: str) -> str:
+        assert "--input-format" in argv
+        assert "image" in stdin_text
+        return '{"type": "result", "result": "multimodal reply"}\n'
+
+    eng = GeminiCLIEngine(
+        runner=lambda argv: "",
+        stream_runner=stream_runner,
+        model="gemini-2.5-flash",
+    )
+    res = eng.run(EngineRequest(prompt="see this", images=(b"fake_png_data",)))
+    assert res.text == "multimodal reply"
