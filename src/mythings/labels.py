@@ -129,6 +129,49 @@ def validate(facets: Facets) -> Validation:
 
 
 @dataclass(frozen=True)
+class Escalation:
+    labels: tuple[str, ...]
+    # None when nothing was promoted, so a caller can branch on it and only
+    # explain itself when it actually changed something.
+    reason: str | None = None
+
+
+# A bug in these lanes is a bug in the thing every other repo is built on, so
+# it is the one case where the filer does not get to pick the priority.
+_ESCALATED_LANES = frozenset({"core", "kernel"})
+
+
+def escalate(labels: Sequence[str]) -> Escalation:
+    # `sort_key` only ranks what someone already labelled, and the labelling
+    # was the manual step: a worker that trips over a core bug files it, it
+    # lands unprioritized in the slush, and the thing the whole fleet is built
+    # on waits behind product backlog. So the default inverts here -- a
+    # core/kernel bug is P0 at filing time and it takes a human to lower it,
+    # rather than a human to raise it.
+    facets = parse(labels)
+    if facets.lane not in _ESCALATED_LANES or facets.kind != "bug":
+        return Escalation(tuple(labels))
+    if facets.prio == "P0":
+        return Escalation(tuple(labels))
+
+    was = f"prio:{facets.prio}" if facets.prio else "no priority"
+    reason = f"lane:{facets.lane} + kind:bug filed with {was} -- promoted to prio:P0"
+    # Substitute in place rather than strip-and-append, so the label order the
+    # caller passed in survives. Only a *recognized* prio is replaced; an
+    # unparseable one is left alone, same as `parse()` passing it through.
+    promoted: list[str] = []
+    for raw in labels:
+        prefix, sep, value = raw.partition(":")
+        if sep and prefix == "prio" and value in _PRIO_ORDER:
+            promoted.append("prio:P0")
+        else:
+            promoted.append(raw)
+    if facets.prio is None:
+        promoted.append("prio:P0")
+    return Escalation(tuple(promoted), reason)
+
+
+@dataclass(frozen=True)
 class QueueItem:
     repo: str
     number: int

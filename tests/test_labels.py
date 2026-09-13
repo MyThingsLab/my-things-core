@@ -2,6 +2,7 @@ from mythings.labels import (
     SCHEMA,
     Facets,
     QueueItem,
+    escalate,
     parse,
     sort_key,
     sync,
@@ -103,6 +104,59 @@ def test_validate_passes_a_fully_specified_dispatchable_issue() -> None:
     result = validate(parse(["lane:core", "size:S", "state:ready", "prio:P1"]))
     assert result.dispatchable
     assert result.reasons == ()
+
+
+def test_escalate_promotes_an_unprioritized_core_bug_to_p0() -> None:
+    result = escalate(["lane:core", "kind:bug", "size:S"])
+    assert result.labels == ("lane:core", "kind:bug", "size:S", "prio:P0")
+    assert result.reason is not None
+
+
+def test_escalate_overrides_a_priority_the_filer_already_chose() -> None:
+    # The whole point: a filer that guessed P2 for a kernel bug does not get to
+    # bury it. Lowering it back down is a human's call, made on the issue.
+    result = escalate(["lane:kernel", "prio:P2", "kind:bug"])
+    assert result.labels == ("lane:kernel", "prio:P0", "kind:bug")
+    assert "prio:P2" in (result.reason or "")
+
+
+def test_escalate_leaves_product_and_external_bugs_alone() -> None:
+    for lane in ("lane:product", "lane:external"):
+        result = escalate([lane, "prio:P3", "kind:bug"])
+        assert result.labels == (lane, "prio:P3", "kind:bug")
+        assert result.reason is None
+
+
+def test_escalate_only_promotes_bugs_not_every_core_issue() -> None:
+    # A core docs typo outranking the fleet is the failure this is correcting,
+    # not one it should reintroduce from the other end.
+    result = escalate(["lane:core", "prio:P3", "kind:docs"])
+    assert result.labels == ("lane:core", "prio:P3", "kind:docs")
+    assert result.reason is None
+
+
+def test_escalate_is_idempotent_on_an_already_p0_bug() -> None:
+    labels = ["lane:core", "prio:P0", "kind:bug"]
+    result = escalate(labels)
+    assert result.labels == tuple(labels)
+    assert result.reason is None  # nothing to explain, so nothing is said
+
+
+def test_escalate_needs_a_lane_to_act_on() -> None:
+    # An unlabelled bug is triage's problem, not this function's -- guessing a
+    # lane here would let a product bug promote itself by omission.
+    assert escalate(["kind:bug"]).reason is None
+
+
+def test_escalate_promotes_a_core_bug_above_everything_but_critical() -> None:
+    # The end-to-end claim: escalate() feeds sort_key(), and the promoted issue
+    # actually reaches the front of the queue.
+    filed = escalate(["lane:kernel", "kind:bug", "size:S"])
+    promoted = QueueItem(repo="o/r", number=2, labels=filed.labels, age_days=0)
+    old_core_backlog = QueueItem(
+        repo="o/r", number=1, labels=("lane:core", "prio:P1", "size:S"), age_days=400
+    )
+    assert sort_key(promoted) < sort_key(old_core_backlog)
 
 
 def test_sort_key_ranks_critical_labels_first() -> None:

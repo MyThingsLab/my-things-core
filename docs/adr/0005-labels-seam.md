@@ -36,6 +36,9 @@ parse(labels)                              -> Facets
 Validation(dispatchable, reasons=())
 validate(facets)                           -> Validation
 
+Escalation(labels, reason=None)
+escalate(labels)                           -> Escalation
+
 QueueItem(repo, number, labels=(), age_days=0.0)
 sort_key(issue)                            -> tuple
 
@@ -70,6 +73,12 @@ sync(repo, *, runner=_gh)                  -> None
   fail-closed choice `plan.ready()` makes for a dangling dependency. Age
   breaks ties oldest-first, and `(repo, number)` is the deterministic tail
   that guarantees no two distinct issues ever tie.
+- **`escalate(labels)`** is the filing-time counterpart to `sort_key`. A
+  `lane:core`/`lane:kernel` `kind:bug` comes back with `prio:P0`, whatever
+  priority the filer asked for, and `Escalation.reason` says what it changed
+  so the caller can put that on the issue. Everything else is returned
+  untouched with `reason=None`. See the amendment below for why the default
+  inverts only here.
 - **`sync(repo, *, runner=_gh)`** calls `gh label create --force` once per
   schema entry. `--force` creates the label if absent and overwrites
   color/description if it already exists, so `sync()` is idempotent against
@@ -122,3 +131,25 @@ could not be applied by the fleet's own tooling on the repo that most needed
 it. It stays unprefixed on purpose: it is an override on the whole ordering,
 not a value within a facet, and `parse()` continues to pass it through in
 `Facets.unknown`.
+
+## Amendment 2 (2026-09-13) — `escalate()`
+
+Fixing the *ordering* only fixed half of "a core bug gets worked on first".
+`sort_key` ranks what someone already labelled, and the labelling was the
+manual step: nothing in the fleet assigns a priority when a bug is found, so a
+worker that trips over a core defect files it unprioritized and it lands in the
+slush behind product backlog. Every `prio:P0` in the org today is there because
+a human typed it.
+
+`escalate()` inverts the default for exactly one case — a `kind:bug` in
+`lane:core` or `lane:kernel` — so filing it *is* prioritizing it, and lowering
+it back down is a human's deliberate act on the issue rather than an omission
+nobody notices. It is a pure function on a label list, kept separate from
+`create_issue` so a caller opts in and the rule stays testable without a
+network call; consumers apply it at their filing sites.
+
+Deliberately narrow. It does not promote non-bugs (a core docs typo outranking
+the fleet is the failure Amendment 1 corrects, not one to reintroduce from the
+other end), it does not touch `product`/`external`, and it never applies
+`critical` — `critical` means an active incident, which is a judgement about
+the world rather than about a label list.
