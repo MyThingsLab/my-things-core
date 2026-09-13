@@ -41,11 +41,11 @@ def _pyproject_version(repo: Path) -> str | None:
     return data.get("project", {}).get("version")
 
 
-def _changelog_versions(repo: Path) -> set[str]:
+def _changelog_headings(repo: Path) -> list[str]:
     changelog = repo / "CHANGELOG.md"
     if not changelog.is_file():
-        return set()
-    return set(_CHANGELOG_HEADING_RE.findall(changelog.read_text(encoding="utf-8")))
+        return []
+    return _CHANGELOG_HEADING_RE.findall(changelog.read_text(encoding="utf-8"))
 
 
 def check_version_changelog(repo: Path) -> list[str]:
@@ -56,12 +56,25 @@ def check_version_changelog(repo: Path) -> list[str]:
     version = _pyproject_version(repo)
     if version is None:
         return [f"{repo.name}: vendors RELEASE.md but has no pyproject.toml version"]
-    if version not in _changelog_versions(repo):
-        return [
+    headings = _changelog_headings(repo)
+    errors = []
+    if version not in headings:
+        errors.append(
             f"{repo.name}: pyproject.toml declares version {version}, "
             f"no matching '## [{version}]' entry in CHANGELOG.md"
-        ]
-    return []
+        )
+    # A duplicate heading means two different commits both shipped as "the
+    # same version" -- the tag for that version can then only ever name one
+    # of them, so it silently stops identifying the other's code. Caught this
+    # repo out once already (605cda5 and 89a3340 both claimed [1.2.0]).
+    seen: set[str] = set()
+    for heading in headings:
+        if heading in seen:
+            errors.append(
+                f"{repo.name}: CHANGELOG.md has more than one '## [{heading}]' entry"
+            )
+        seen.add(heading)
+    return errors
 
 
 def check(workspace: Path) -> list[str]:

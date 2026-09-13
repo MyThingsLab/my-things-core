@@ -5,6 +5,40 @@ All notable changes to `my-things-core` are documented here. Format follows
 [semver](https://semver.org/), per the rules in `src/mythings/release.md`
 (see `docs/CONVENTIONS.md` for the reasoning).
 
+## [1.6.0] - 2026-09-14
+
+Since v1.5.0 was tagged, six PRs landed on `main` without a version bump —
+`pyproject.toml` kept saying 1.5.0 while the code it names moved on, leaving
+no tag for what a dependant pinning "the latest release" would actually get.
+Same class of gap as #174, just recurring on new commits instead of old
+ones: this release closes it for the current tree, and `check_version_changelog`
+now also rejects a repeated `## [X.Y.Z]` heading so a future rerank can't
+silently reuse a version the way `[1.2.0]` once did.
+
+**Added — `mythings.handoff`**, the standardized inter-tool handoff contract.
+`StageHandoff` carries target symbols, modified files, test targets, and an
+Agent Context Pack slice from one fleet-cycle stage to the next (Planner →
+Researcher → Scaffolder → Coder → Tester → Reporter); `render_prompt_slice`
+keeps the cost to ~100-200 tokens, and `save`/`load` persist handoffs under
+`.my-fleet/handoffs/`. Closes #176.
+
+**Added — `mythings.ledger` token telemetry, checkpoints, and `ResumePack`.**
+Entries carry standardized `prompt_tokens`/`completion_tokens`/`total_tokens`/
+`cost_usd`; `get_checkpoint` synthesizes an attempt-history summary and
+`render_resume_pack` renders a ~100-token markdown slice a worker resuming
+after an interruption can read instead of replaying the full ledger. Closes
+#175.
+
+**Added — `BaseToolRunner.run_issue_workflow` and seam methods**, plus
+`GitHub`/`Engine` contract extensions (`build_engine_from_args`,
+`parse_json_object`, and matching `GitHub`/`tool` additions) so a My[X] tool
+can delegate its issue-pick-through-PR loop to core instead of
+re-implementing it per repo.
+
+**Fixed — `GitHub.get_issue` no longer raises when the GraphQL/REST payload
+omits `url`**; it now falls back to `""` like every other optional field on
+`Issue`.
+
 ## [1.5.0] - 2026-09-13
 
 **Added — `mythings.graph`**, deterministic property graph for code, documentation,
