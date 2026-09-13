@@ -50,3 +50,15 @@ def test_base_tool_runner_picks_issue() -> None:
     assert issue is not None
     assert issue.number == 15
     assert issue.title == "Do task"
+
+
+def test_base_tool_runner_skips_when_no_issue() -> None:
+    fake = FakeGh("[]")
+    gh = GitHub(repo="org/repo", runner=fake)
+    runner = BaseToolRunner(repo="org/repo", label="my-tool", github=gh)
+
+    result = runner.run_issue_workflow(tool_name="mytool", ledger_kind="tool")
+
+    assert result.outcome == "skipped"
+    assert "no open 'my-tool' issue" in result.detail
+
