@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import json
+from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
+
+from mythings.github import GitHubError, Runner, _gh
 
 # The canonical build-harness rules ship as package data so any tool that
 # installs my-things-core can diff its vendored HARNESS.md against this. Build
@@ -43,20 +47,123 @@ def revendor(workspace: Path, *, check: bool = False) -> tuple[list[str], list[s
     return stale, fresh
 
 
+# `--check` against a workspace can only see the checkouts that happen to be on
+# this disk, which in CI is none of them: core's own workflow checks out core
+# alone, so the glob above matches nothing and the check passes trivially. A
+# gate that cannot fail is worse than no gate, so the CI-facing check reads the
+# vendored copies from GitHub instead of from a workspace.
+#
+# This is a real gate but not an atomic one: merging a harness.md edit and
+# re-vendoring 40-odd sibling repos cannot happen in one commit.
+#
+# Which is why "stale" cannot mean "its default branch disagrees". A sibling's
+# sweep PR can only be written against the *new* canonical, so it is red until
+# the core PR merges -- while the core PR, gated on that sibling's default
+# branch, is red until the sweep merges. Neither can go green first, and the
+# gate deadlocks the one change that would satisfy it. (Observed, not
+# hypothetical: this gate's own first CI run failed exactly this way.)
+#
+# So a sibling counts as handled when its default branch already matches *or*
+# an open PR on it carries a matching copy. The sweep must exist and be
+# visible; it just doesn't have to have landed yet. A repo with no fix anywhere
+# is what fails the gate.
+
+
+@dataclass(frozen=True)
+class VendorDrift:
+    stale: list[str]  # no matching copy on the default branch or in any open PR
+    in_flight: list[str]  # an open PR carries the matching copy; not yet merged
+    current: list[str]
+
+
+def _vendored_at(runner: Runner, org: str, name: str, ref: str | None = None) -> str:
+    path = f"repos/{org}/{name}/contents/HARNESS.md"
+    if ref is not None:
+        path += f"?ref={ref}"
+    return runner(["api", path, "-H", "Accept: application/vnd.github.raw"])
+
+
+def _sweep_in_flight(runner: Runner, org: str, name: str, canonical: str) -> bool:
+    try:
+        raw = runner(
+            ["pr", "list", "--repo", f"{org}/{name}", "--state", "open",
+             "--json", "headRefOid", "--limit", "50"]
+        )
+    except GitHubError:
+        return False
+    for pr in json.loads(raw):
+        sha = str(pr.get("headRefOid", ""))
+        if not sha:
+            continue
+        try:
+            if _vendored_at(runner, org, name, sha) == canonical:
+                return True
+        except GitHubError:
+            continue
+    return False
+
+
+def remote_stale(org: str, *, runner: Runner = _gh) -> VendorDrift:
+    canonical = harness_text()
+    drift = VendorDrift(stale=[], in_flight=[], current=[])
+    raw = runner(["repo", "list", org, "--json", "name,isArchived", "--limit", "300"])
+    for entry in sorted(json.loads(raw), key=lambda e: str(e.get("name", ""))):
+        # An archived repo is read-only -- it cannot be re-vendored, so holding
+        # a core change hostage to it would make the gate permanently red.
+        if entry.get("isArchived"):
+            continue
+        name = str(entry["name"])
+        try:
+            vendored = _vendored_at(runner, org, name)
+        except GitHubError:
+            continue  # doesn't vendor a HARNESS.md; not this gate's business
+        if vendored == canonical:
+            drift.current.append(name)
+        elif _sweep_in_flight(runner, org, name, canonical):
+            drift.in_flight.append(name)
+        else:
+            drift.stale.append(name)
+    return drift
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m mythings._harness",
         description="Re-vendor the canonical harness.md into every sibling repo's HARNESS.md.",
     )
     parser.add_argument(
-        "workspace", type=Path, help="MyThingsLab workspace root (parent of the tool checkouts)"
+        "workspace",
+        type=Path,
+        nargs="?",
+        help="MyThingsLab workspace root (parent of the tool checkouts)",
     )
     parser.add_argument(
         "--check",
         action="store_true",
         help="report stale copies without rewriting; exit 1 if any is stale",
     )
+    parser.add_argument(
+        "--remote-check",
+        metavar="ORG",
+        help="check every non-archived repo in ORG on GitHub instead of a local "
+        "workspace; exit 1 if any vendored HARNESS.md is stale",
+    )
     args = parser.parse_args(argv)
+
+    if args.remote_check:
+        drift = remote_stale(args.remote_check)
+        for name in drift.in_flight:
+            print(f"sweep in flight: {name}/HARNESS.md (open PR carries the new copy)")
+        for name in drift.stale:
+            print(f"stale: {name}/HARNESS.md")
+        print(
+            f"{len(drift.stale)} stale, {len(drift.in_flight)} in flight, "
+            f"{len(drift.current)} already current"
+        )
+        return 1 if drift.stale else 0
+
+    if args.workspace is None:
+        parser.error("give a workspace path, or --remote-check ORG")
 
     stale, fresh = revendor(args.workspace, check=args.check)
     verb = "stale" if args.check else "re-vendored"

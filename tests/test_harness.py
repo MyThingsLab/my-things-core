@@ -1,6 +1,10 @@
+import json
 from pathlib import Path
 
-from mythings._harness import harness_text, main, revendor, service_harness_text
+import pytest
+
+from mythings._harness import harness_text, main, remote_stale, revendor, service_harness_text
+from mythings.github import GitHubError
 
 
 def test_harness_text_is_shipped_and_nonempty() -> None:
@@ -45,3 +49,94 @@ def test_revendor_check_reports_without_writing(tmp_path: Path) -> None:
     assert main([str(tmp_path), "--check"]) == 1
     assert main([str(tmp_path)]) == 0
     assert main([str(tmp_path), "--check"]) == 0
+
+
+def _fake_runner(
+    repos: list[dict],
+    contents: dict[str, str],
+    pr_contents: dict[str, str] | None = None,
+):
+    # contents: repo -> HARNESS.md on the default branch.
+    # pr_contents: repo -> HARNESS.md on that repo's one open PR head.
+    pr_contents = pr_contents or {}
+
+    def run(argv: list[str]) -> str:
+        if argv[:2] == ["repo", "list"]:
+            return json.dumps(repos)
+        if argv[:2] == ["pr", "list"]:
+            name = argv[argv.index("--repo") + 1].split("/")[1]
+            return json.dumps([{"headRefOid": f"sha-{name}"}] if name in pr_contents else [])
+        path, _, query = argv[1].partition("?")
+        name = path.split("/")[2]  # repos/<org>/<name>/contents/HARNESS.md
+        if query.startswith("ref="):
+            if name not in pr_contents:
+                raise GitHubError("gh api ... failed (1): Not Found")
+            return pr_contents[name]
+        if name not in contents:
+            raise GitHubError(f"gh api repos/o/{name}/contents/HARNESS.md failed (1): Not Found")
+        return contents[name]
+
+    return run
+
+
+def test_remote_stale_separates_stale_from_current() -> None:
+    runner = _fake_runner(
+        [{"name": "my-stale", "isArchived": False}, {"name": "my-fresh", "isArchived": False}],
+        {"my-stale": "old rules", "my-fresh": harness_text()},
+    )
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight, drift.current) == (["my-stale"], [], ["my-fresh"])
+
+
+def test_remote_stale_ignores_archived_and_non_vendoring_repos() -> None:
+    # An archived repo is read-only, so a stale copy there could never be
+    # fixed -- counting it would pin the gate red forever. A repo with no
+    # HARNESS.md simply isn't this gate's business.
+    runner = _fake_runner(
+        [
+            {"name": "my-archived", "isArchived": True},
+            {"name": "study", "isArchived": False},
+            {"name": "my-fresh", "isArchived": False},
+        ],
+        {"my-archived": "old rules", "my-fresh": harness_text()},
+    )
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight, drift.current) == ([], [], ["my-fresh"])
+
+
+def test_an_open_sweep_pr_counts_as_handled_so_the_gate_cannot_deadlock() -> None:
+    # The deadlock this guards against, which this gate's own first CI run hit:
+    # a sibling's sweep PR is written against the new canonical, so it is red
+    # until the core PR merges -- and the core PR is red until the sweep merges.
+    # Neither can go green first. An open PR carrying the new copy is enough.
+    runner = _fake_runner(
+        [{"name": "my-swept", "isArchived": False}],
+        {"my-swept": "old rules"},
+        pr_contents={"my-swept": harness_text()},
+    )
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight) == ([], ["my-swept"])
+
+
+def test_an_open_pr_that_does_not_sweep_leaves_the_repo_stale() -> None:
+    # Any open PR must not launder a stale repo -- only one that actually
+    # carries the new copy counts.
+    runner = _fake_runner(
+        [{"name": "my-stale", "isArchived": False}],
+        {"my-stale": "old rules"},
+        pr_contents={"my-stale": "some unrelated change"},
+    )
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight) == (["my-stale"], [])
+
+
+def test_workspace_check_cannot_stand_in_for_the_remote_check(tmp_path: Path) -> None:
+    # The reason --remote-check exists: core's CI checks out core alone, so a
+    # workspace check there globs nothing and passes no matter how stale the
+    # fleet is. Pin that, so nobody "simplifies" CI back to --check.
+    assert main([str(tmp_path), "--check"]) == 0
+
+
+def test_main_requires_a_workspace_or_an_org() -> None:
+    with pytest.raises(SystemExit):
+        main([])
