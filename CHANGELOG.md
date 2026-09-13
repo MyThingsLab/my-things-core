@@ -5,7 +5,20 @@ All notable changes to `my-things-core` are documented here. Format follows
 [semver](https://semver.org/), per the rules in `src/mythings/release.md`
 (see `docs/CONVENTIONS.md` for the reasoning).
 
-## [1.2.0] - 2026-09-13
+## [1.4.0] - 2026-09-13
+
+**Added — `labels.escalate(labels)`**, the filing-time counterpart to
+`sort_key`. A `kind:bug` in `lane:core` or `lane:kernel` comes back carrying
+`prio:P0` whatever priority the filer chose, with `Escalation.reason` naming
+what changed; everything else is returned untouched with `reason=None`. Ranking
+alone only ordered what someone had already prioritized by hand, so a core bug
+filed unlabelled still queued behind product backlog. Pure function, no
+network; consumers opt in at their filing sites.
+
+## [1.3.0] - 2026-09-13
+
+Released as `1.2.0` by mistake — that version was already taken by the
+`mythings.session` entry below, and both landed before either was tagged.
 
 **Changed — `labels.sort_key` now ranks priority above lane.** The key is
 `(not critical, prio_rank, lane_rank, -age_days, repo, number)`; it was
