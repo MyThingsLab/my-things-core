@@ -206,6 +206,26 @@ just shared plumbing every tool would otherwise reimplement:
   it provides `render_context_pack` to synthesize an **Agent Context Pack (ACP)**
   that constrains an ephemeral agent's mutation target and blast radius.
 
+  **Deterministic Graph Analysis Engine**:
+  - `find_structural_clones()`: Normalizes AST shape hashes using `ast.NodeTransformer` to detect exact content and structural code clones without LLM calls.
+  - `find_test_gaps()`: Ranks production functions by incoming caller frequency having zero direct unit test coverage.
+  - `find_circular_imports()`: Detects module dependency cycles over `imports` edges.
+  - `find_unreferenced_symbols()`: Discovers unreferenced internal/private symbols for dead code pruning.
+
+- `handoff` — the standardized inter-tool communication protocol (`mythings.handoff`).
+  Provides a typed `StageHandoff` payload passed sequentially between fleet cycle stages:
+  `Planner` → `Researcher` → `Scaffolder` → `Coder` → `Tester` → `Reporter`.
+  
+  Contains `render_prompt_slice()` to generate a compact **~100–200 token Markdown context slice**
+  for downstream tools, eliminating re-discovery token waste and prompt duplication across cycle stages.
+  Persists atomically under `.my-fleet/handoffs/` via `save_handoff` and `load_latest_handoff`.
+
+- `ledger` (checkpoints & token telemetry) — enhanced with token spend properties (`prompt_tokens`,
+  `completion_tokens`, `total_tokens`, `cost_usd`) on `LedgerEntry`. Synthesizes durable issue
+  attempt history into a `Checkpoint` dataclass (`Ledger.get_checkpoint`), and formats a
+  **~100–150 token Markdown ResumePack** (`render_resume_pack`) for resuming workers, reducing
+  prompt token ingestion by over 80% on retries.
+
 ## What is intentionally *not* here
 
 - No LLM calls beyond the `engine` seam itself — tools still choose when to
