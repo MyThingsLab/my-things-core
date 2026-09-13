@@ -5,6 +5,23 @@ All notable changes to `my-things-core` are documented here. Format follows
 [semver](https://semver.org/), per the rules in `src/mythings/release.md`
 (see `docs/CONVENTIONS.md` for the reasoning).
 
+## [1.2.0] - 2026-09-13
+
+**Changed — `labels.sort_key` now ranks priority above lane.** The key is
+`(not critical, prio_rank, lane_rank, -age_days, repo, number)`; it was
+`(not critical, lane_rank, prio_rank, …)`. Lane-first made `prio:P0` mean
+"first *within its lane*", so a `lane:core` `prio:P3` issue dispatched ahead of
+a `lane:kernel` `prio:P0` one — contradicting the schema's own description of
+`prio:P0` ("Blocking — nothing else should dispatch ahead of this"). Lane now
+decides among equal priorities instead of vetoing them, so a core P0 still
+leads the P0s. Callers that sort with `sort_key` see a different order; callers
+that only read the tuple's shape are unaffected.
+
+**Added — `critical` is now a `SCHEMA` entry**, bringing it to 23 labels.
+`sort_key` already read the label, but it was never in the schema, so `sync()`
+never created it and it was absent on repos nobody had labelled by hand. It
+stays unprefixed and continues to surface in `Facets.unknown`.
+
 ## [1.1.0] - 2026-09-12
 
 Adds `mythings.labels` (ADR 0005): the 22-label CAD schema (`lane:*`,

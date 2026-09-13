@@ -13,7 +13,7 @@ class LabelDef:
     description: str
 
 
-# The 22-label CAD schema, one canonical table. `sync()` and `parse()` both
+# The 23-label CAD schema, one canonical table. `sync()` and `parse()` both
 # read from this instead of each hand-rolling the vocabulary, so the schema
 # can only drift by editing this one list.
 SCHEMA: tuple[LabelDef, ...] = (
@@ -43,6 +43,17 @@ SCHEMA: tuple[LabelDef, ...] = (
     LabelDef("state:blocked", "b60205", "Waiting on a dependency; not dispatchable"),
     LabelDef("state:needs-human", "fbca04", "Needs a human decision before a worker can proceed"),
     LabelDef("state:in-flight", "1d76db", "Already claimed by a worker"),
+    # Deliberately unprefixed, and deliberately the only label that is not part
+    # of a facet: it is an override on the whole ordering rather than a value
+    # within one, and giving it a facet would invite a second value nobody
+    # could rank against the first. `sort_key` has always read it; until it was
+    # listed here `sync()` never created it, so the one thing that outranks
+    # everything was missing on whichever repos nobody had labelled by hand.
+    LabelDef(
+        "critical",
+        "b60205",
+        "Outranks every lane and priority — an incident, not a backlog item",
+    ),
 )
 
 # lane/prio dispatch order, lowest rank first -- also doubles as the allowed
@@ -136,13 +147,22 @@ def sort_key(
     issue: QueueItem,
 ) -> tuple[bool, int, int, float, str, int]:
     # Lexicographic, no tuning constants -- explainable in one line: not
-    # critical, then lane, then priority, then oldest first, then a
+    # critical, then priority, then lane, then oldest first, then a
     # deterministic tiebreak on (repo, number).
+    #
+    # Priority outranks lane, and the order of those two is the whole design.
+    # Lane-first was tried and is wrong: it makes `prio:P0` mean "first within
+    # its lane", so a `lane:core` docs typo dispatches ahead of a `lane:kernel`
+    # P0 security bug -- (True, 0, 3) < (True, 1, 0). That is not what the
+    # label says ("Blocking -- nothing else should dispatch ahead of this"),
+    # and a priority nobody can trust to mean what it says stops being used.
+    # Lane still decides among equals, so a core P0 leads the P0s and "core
+    # stays stable" survives as a tiebreak rather than as a veto.
     facets = parse(issue.labels)
     critical = "critical" in issue.labels
     lane_rank = _rank(facets.lane, _LANE_ORDER)
     prio_rank = _rank(facets.prio, _PRIO_ORDER)
-    return (not critical, lane_rank, prio_rank, -issue.age_days, issue.repo, issue.number)
+    return (not critical, prio_rank, lane_rank, -issue.age_days, issue.repo, issue.number)
 
 
 def sync(repo: str, *, runner: Runner = _gh) -> None:

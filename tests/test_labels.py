@@ -10,12 +10,28 @@ from mythings.labels import (
 from mythings.testing import FakeGh
 
 
-def test_schema_has_all_22_cad_labels() -> None:
+def test_schema_has_all_23_cad_labels() -> None:
     names = [label.name for label in SCHEMA]
-    assert len(names) == 22
-    assert len(set(names)) == 22  # no duplicates
+    assert len(names) == 23
+    assert len(set(names)) == 23  # no duplicates
     for prefix, count in (("lane:", 4), ("prio:", 4), ("kind:", 7), ("size:", 3), ("state:", 4)):
         assert sum(1 for n in names if n.startswith(prefix)) == count
+    assert "critical" in names
+
+
+def test_the_label_that_outranks_everything_is_one_sync_can_create() -> None:
+    # It was not. `sort_key` read `critical` from day one, but it was never a
+    # SCHEMA entry, so sync() never created it -- it existed only where someone
+    # had added it by hand, and was missing on the repo holding three of the
+    # five open P0s. An override nobody can apply is not an override.
+    assert any(label.name == "critical" for label in SCHEMA)
+
+
+def test_critical_is_unprefixed_so_it_does_not_become_a_facet_value() -> None:
+    # It overrides the whole ordering rather than being a value within one
+    # facet; parse() must keep passing it through as unknown.
+    assert parse(("critical", "lane:core")).unknown == ("critical",)
+    assert parse(("critical", "lane:core")).lane == "core"
 
 
 def test_every_schema_label_has_a_color_and_description() -> None:
@@ -95,7 +111,7 @@ def test_sort_key_ranks_critical_labels_first() -> None:
     assert sort_key(critical) < sort_key(normal)
 
 
-def test_sort_key_orders_by_lane_then_prio_then_age_then_repo_then_number() -> None:
+def test_sort_key_orders_by_prio_then_lane_then_age_then_repo_then_number() -> None:
     items = [
         QueueItem(repo="z", number=1, labels=("lane:external", "prio:P0"), age_days=10),
         QueueItem(repo="a", number=2, labels=("lane:core", "prio:P3"), age_days=1),
@@ -110,13 +126,32 @@ def test_sort_key_orders_by_lane_then_prio_then_age_then_repo_then_number() -> N
 
     assert [(item.repo, item.number) for item in ranked] == [
         ("d", 1),  # critical wins outright
-        ("b", 1),  # lane:core + prio:P0 beats lane:core + prio:P3
-        ("a", 1),  # same lane/prio/age as (a, 2); (repo, number) tiebreak
-        ("a", 2),
-        ("c", 2),  # lane:kernel, prio:P0, oldest of the two kernel items
+        ("b", 1),  # every P0 first; lane:core leads them
+        ("c", 2),  # lane:kernel P0, oldest of the two kernel items
         ("c", 1),
-        ("z", 1),  # lane:external loses to every core/kernel item despite prio:P0
+        ("z", 1),  # lane:external, but still a P0, so still ahead of any P3
+        ("a", 1),  # P3 last, (repo, number) breaking the tie with (a, 2)
+        ("a", 2),
     ]
+
+
+def test_a_p0_outside_core_beats_a_low_priority_core_issue() -> None:
+    # The regression this ordering exists for. Under the original
+    # (critical, lane, prio, ...) key, lane sorted first and a core docs typo
+    # dispatched ahead of a kernel security bug -- (True, 0, 3) < (True, 1, 0)
+    # -- which makes prio:P0 mean "first within its lane" rather than what the
+    # schema says it means.
+    core_typo = QueueItem(repo="a", number=1, labels=("lane:core", "prio:P3"), age_days=1)
+    kernel_p0 = QueueItem(repo="b", number=2, labels=("lane:kernel", "prio:P0"), age_days=1)
+    assert sort_key(kernel_p0) < sort_key(core_typo)
+
+
+def test_lane_still_decides_among_equal_priorities() -> None:
+    # Lane-first was not wrong about wanting core to lead, only about letting
+    # it veto. As a tiebreak within a priority, "core stays stable" survives.
+    core_p0 = QueueItem(repo="z", number=9, labels=("lane:core", "prio:P0"), age_days=1)
+    kernel_p0 = QueueItem(repo="a", number=1, labels=("lane:kernel", "prio:P0"), age_days=1)
+    assert sort_key(core_p0) < sort_key(kernel_p0)
 
 
 def test_sort_key_has_no_ties_beyond_repo_and_number() -> None:
