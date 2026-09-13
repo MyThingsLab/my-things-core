@@ -37,6 +37,7 @@ class EngineRequest:
     # switches ClaudeCLIEngine to the stream-json wire format (see below);
     # NoopEngine and every other backend just ignores it.
     images: tuple[bytes, ...] = ()
+    cwd: str | Path | None = None
 
 
 @dataclass(frozen=True)
@@ -87,30 +88,55 @@ def _stdout_or_failure(proc: subprocess.CompletedProcess[str]) -> str:
     return proc.stdout
 
 
-def _claude(argv: list[str]) -> str:
-    proc = subprocess.run(["claude", *argv], capture_output=True, text=True)
+def _claude(argv: list[str], *, cwd: str | Path | None = None) -> str:
+    proc = subprocess.run(["claude", *argv], capture_output=True, text=True, cwd=cwd)
     return _stdout_or_failure(proc)
 
 
-def _claude_stream(argv: list[str], stdin_text: str) -> str:
+def _claude_stream(argv: list[str], stdin_text: str, *, cwd: str | Path | None = None) -> str:
     proc = subprocess.run(
-        ["claude", *argv], input=stdin_text, capture_output=True, text=True
+        ["claude", *argv], input=stdin_text, capture_output=True, text=True, cwd=cwd
     )
     return _stdout_or_failure(proc)
 
 
-def _gemini(argv: list[str]) -> str:
+def _gemini(argv: list[str], *, cwd: str | Path | None = None) -> str:
     bin_name = os.environ.get("GEMINI_CLI_BIN", "agy")
-    proc = subprocess.run([bin_name, *argv], capture_output=True, text=True)
+    proc = subprocess.run([bin_name, *argv], capture_output=True, text=True, cwd=cwd)
     return _stdout_or_failure(proc)
 
 
-def _gemini_stream(argv: list[str], stdin_text: str) -> str:
+def _gemini_stream(argv: list[str], stdin_text: str, *, cwd: str | Path | None = None) -> str:
     bin_name = os.environ.get("GEMINI_CLI_BIN", "agy")
     proc = subprocess.run(
-        [bin_name, *argv], input=stdin_text, capture_output=True, text=True
+        [bin_name, *argv], input=stdin_text, capture_output=True, text=True, cwd=cwd
     )
     return _stdout_or_failure(proc)
+
+
+def _invoke_runner(
+    runner: Callable[..., str], argv: list[str], cwd: str | Path | None = None
+) -> str:
+    if cwd is None:
+        return runner(argv)
+    try:
+        return runner(argv, cwd=cwd)
+    except TypeError:
+        return runner(argv)
+
+
+def _invoke_stream_runner(
+    stream_runner: Callable[..., str],
+    argv: list[str],
+    stdin_text: str,
+    cwd: str | Path | None = None,
+) -> str:
+    if cwd is None:
+        return stream_runner(argv, stdin_text)
+    try:
+        return stream_runner(argv, stdin_text, cwd=cwd)
+    except TypeError:
+        return stream_runner(argv, stdin_text)
 
 
 # Models routinely wrap JSON replies in a ```json fence despite a system
@@ -169,6 +195,7 @@ class ClaudeCLIEngine:
         *,
         model: str | None = None,
         effort: str | None = None,
+        cwd: str | Path | None = None,
         runner: Runner = _claude,
         stream_runner: StreamRunner = _claude_stream,
     ) -> None:
@@ -177,6 +204,7 @@ class ClaudeCLIEngine:
         # xhigh/max) with no validation here -- same trust level as `model`: an
         # invalid value is the CLI's own error to report, not this seam's to guess at.
         self._effort = effort
+        self._cwd = cwd
         self._run = runner
         self._run_stream = stream_runner
 
@@ -199,7 +227,8 @@ class ClaudeCLIEngine:
             argv += ["--effort", self._effort]
         argv.append(request.prompt)
 
-        raw = self._run(argv)
+        effective_cwd = request.cwd or self._cwd
+        raw = _invoke_runner(self._run, argv, cwd=effective_cwd)
         try:
             obj = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
@@ -244,7 +273,8 @@ class ClaudeCLIEngine:
             json.dumps({"type": "user", "message": {"role": "user", "content": content}}) + "\n"
         )
 
-        raw = self._run_stream(argv, stdin_text)
+        effective_cwd = request.cwd or self._cwd
+        raw = _invoke_stream_runner(self._run_stream, argv, stdin_text, cwd=effective_cwd)
         obj = self._last_result_line(raw)
         text = "" if obj.get("is_error") else _strip_code_fence(obj.get("result", ""))
         return EngineResult(text=text, data=obj)
@@ -280,11 +310,13 @@ class GeminiCLIEngine:
         *,
         model: str | None = None,
         effort: str | None = None,
+        cwd: str | Path | None = None,
         runner: Runner = _gemini,
         stream_runner: StreamRunner = _gemini_stream,
     ) -> None:
         self._model = model
         self._effort = effort
+        self._cwd = cwd
         self._run = runner
         self._run_stream = stream_runner
 
@@ -298,7 +330,8 @@ class GeminiCLIEngine:
         if self._effort:
             argv += ["--effort", self._effort]
 
-        raw = self._run(argv)
+        effective_cwd = request.cwd or self._cwd
+        raw = _invoke_runner(self._run, argv, cwd=effective_cwd)
         try:
             obj = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
@@ -339,7 +372,8 @@ class GeminiCLIEngine:
             json.dumps({"type": "user", "message": {"role": "user", "content": content}}) + "\n"
         )
 
-        raw = self._run_stream(argv, stdin_text)
+        effective_cwd = request.cwd or self._cwd
+        raw = _invoke_stream_runner(self._run_stream, argv, stdin_text, cwd=effective_cwd)
         obj = ClaudeCLIEngine._last_result_line(raw)
         if not obj:
             try:
@@ -491,9 +525,10 @@ def build_engine_from_args(args: Any) -> Engine:
     engine_type = getattr(args, "engine", "noop")
     model = getattr(args, "model", None)
     effort = getattr(args, "effort", None)
+    cwd = getattr(args, "cwd", None)
     if engine_type == "claude-cli":
-        return ClaudeCLIEngine(model=model, effort=effort)
+        return ClaudeCLIEngine(model=model, effort=effort, cwd=cwd)
     if engine_type == "gemini-cli":
-        return GeminiCLIEngine(model=model, effort=effort)
+        return GeminiCLIEngine(model=model, effort=effort, cwd=cwd)
     return NoopEngine()
 
