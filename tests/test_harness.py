@@ -51,11 +51,27 @@ def test_revendor_check_reports_without_writing(tmp_path: Path) -> None:
     assert main([str(tmp_path), "--check"]) == 0
 
 
-def _fake_runner(repos: list[dict], contents: dict[str, str]):
+def _fake_runner(
+    repos: list[dict],
+    contents: dict[str, str],
+    pr_contents: dict[str, str] | None = None,
+):
+    # contents: repo -> HARNESS.md on the default branch.
+    # pr_contents: repo -> HARNESS.md on that repo's one open PR head.
+    pr_contents = pr_contents or {}
+
     def run(argv: list[str]) -> str:
         if argv[:2] == ["repo", "list"]:
             return json.dumps(repos)
-        name = argv[1].split("/")[2]  # repos/<org>/<name>/contents/HARNESS.md
+        if argv[:2] == ["pr", "list"]:
+            name = argv[argv.index("--repo") + 1].split("/")[1]
+            return json.dumps([{"headRefOid": f"sha-{name}"}] if name in pr_contents else [])
+        path, _, query = argv[1].partition("?")
+        name = path.split("/")[2]  # repos/<org>/<name>/contents/HARNESS.md
+        if query.startswith("ref="):
+            if name not in pr_contents:
+                raise GitHubError("gh api ... failed (1): Not Found")
+            return pr_contents[name]
         if name not in contents:
             raise GitHubError(f"gh api repos/o/{name}/contents/HARNESS.md failed (1): Not Found")
         return contents[name]
@@ -68,7 +84,8 @@ def test_remote_stale_separates_stale_from_current() -> None:
         [{"name": "my-stale", "isArchived": False}, {"name": "my-fresh", "isArchived": False}],
         {"my-stale": "old rules", "my-fresh": harness_text()},
     )
-    assert remote_stale("o", runner=runner) == (["my-stale"], ["my-fresh"])
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight, drift.current) == (["my-stale"], [], ["my-fresh"])
 
 
 def test_remote_stale_ignores_archived_and_non_vendoring_repos() -> None:
@@ -83,7 +100,34 @@ def test_remote_stale_ignores_archived_and_non_vendoring_repos() -> None:
         ],
         {"my-archived": "old rules", "my-fresh": harness_text()},
     )
-    assert remote_stale("o", runner=runner) == ([], ["my-fresh"])
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight, drift.current) == ([], [], ["my-fresh"])
+
+
+def test_an_open_sweep_pr_counts_as_handled_so_the_gate_cannot_deadlock() -> None:
+    # The deadlock this guards against, which this gate's own first CI run hit:
+    # a sibling's sweep PR is written against the new canonical, so it is red
+    # until the core PR merges -- and the core PR is red until the sweep merges.
+    # Neither can go green first. An open PR carrying the new copy is enough.
+    runner = _fake_runner(
+        [{"name": "my-swept", "isArchived": False}],
+        {"my-swept": "old rules"},
+        pr_contents={"my-swept": harness_text()},
+    )
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight) == ([], ["my-swept"])
+
+
+def test_an_open_pr_that_does_not_sweep_leaves_the_repo_stale() -> None:
+    # Any open PR must not launder a stale repo -- only one that actually
+    # carries the new copy counts.
+    runner = _fake_runner(
+        [{"name": "my-stale", "isArchived": False}],
+        {"my-stale": "old rules"},
+        pr_contents={"my-stale": "some unrelated change"},
+    )
+    drift = remote_stale("o", runner=runner)
+    assert (drift.stale, drift.in_flight) == (["my-stale"], [])
 
 
 def test_workspace_check_cannot_stand_in_for_the_remote_check(tmp_path: Path) -> None:
