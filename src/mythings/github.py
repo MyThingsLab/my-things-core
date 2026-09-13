@@ -241,6 +241,29 @@ class GitHub:
         url = self._run(self._argv(argv)).strip().splitlines()[-1]
         return Issue(number=_issue_number(url), title=title, body=body, url=url)
 
+    def get_issue(self, number: int) -> Issue:
+        argv = ["issue", "view", str(number), "--json", "number,title,body,labels,url"]
+        obj = json.loads(self._run(self._argv(argv)))
+        return Issue(
+            number=obj["number"],
+            title=obj["title"],
+            body=obj.get("body", "") or "",
+            url=obj["url"],
+            labels=[lbl["name"] for lbl in obj.get("labels", [])],
+        )
+
+    def find_open_pr(self, title: str) -> PullRequest | None:
+        argv = ["pr", "list", "--state", "open", "--json", "number,title,url"]
+        raw = json.loads(self._run(self._argv(argv)))
+        for obj in raw:
+            if obj.get("title") == title or title in obj.get("title", ""):
+                return PullRequest(number=obj["number"], url=obj["url"])
+        return None
+
+    def comment(self, number: int, body: str) -> None:
+        argv = ["issue", "comment", str(number), "--body", body]
+        self._run(self._argv(argv))
+
     def add_labels(self, number: int, labels: list[str]) -> None:
         argv = ["issue", "edit", str(number)]
         for label in labels:

@@ -567,3 +567,53 @@ def test_repo_create_omits_empty_description() -> None:
     gh.repo_create("Org/x")
 
     assert "--description" not in fake.calls[0]
+
+
+def test_get_issue_parses_json() -> None:
+    payload = json.dumps(
+        {
+            "number": 42,
+            "title": "Add feature",
+            "body": "details here",
+            "url": "https://github.com/o/r/issues/42",
+            "labels": [{"name": "feat"}],
+        }
+    )
+    fake = FakeGh(payload)
+    gh = GitHub(runner=fake)
+
+    issue = gh.get_issue(42)
+
+    assert issue.number == 42
+    assert issue.title == "Add feature"
+    assert issue.body == "details here"
+    assert issue.labels == ["feat"]
+    assert fake.calls[0][:3] == ["issue", "view", "42"]
+
+
+def test_find_open_pr_returns_matching_pr() -> None:
+    payload = json.dumps(
+        [
+            {"number": 10, "title": "feat: add feature X", "url": "https://github.com/o/r/pull/10"}
+        ]
+    )
+    fake = FakeGh(payload)
+    gh = GitHub(runner=fake)
+
+    pr = gh.find_open_pr("add feature X")
+
+    assert pr is not None
+    assert pr.number == 10
+    assert pr.url == "https://github.com/o/r/pull/10"
+
+
+def test_comment_invokes_issue_comment() -> None:
+    fake = FakeGh("")
+    gh = GitHub(runner=fake)
+
+    gh.comment(42, "Looks good!")
+
+    assert fake.calls[0][:3] == ["issue", "comment", "42"]
+    assert "--body" in fake.calls[0]
+    assert "Looks good!" in fake.calls[0]
+

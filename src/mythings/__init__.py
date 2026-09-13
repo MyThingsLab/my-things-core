@@ -7,6 +7,8 @@ from mythings.engine import (
     EngineResult,
     GeminiCLIEngine,
     NoopEngine,
+    build_engine_from_args,
+    parse_json_object,
 )
 from mythings.fetch import (
     FetchResult,
@@ -46,12 +48,14 @@ from mythings.plan import PlanTask, parse, read_plan, ready, reconcile, render, 
 from mythings.policy import ALLOW, Action, Decision, Policy, PolicyResult
 from mythings.projects import ProjectField, ProjectItem, Projects
 from mythings.testers import Session, Tester, TesterStore, Turn
+from mythings.tool import BaseToolRunner, ToolRunResult
 
 __version__ = version("my-things-core")
 
 __all__ = [
     "ALLOW",
     "Action",
+    "BaseToolRunner",
     "BlastRadius",
     "CIStatus",
     "ClaudeCLIEngine",
@@ -87,9 +91,11 @@ __all__ = [
     "StageHandoff",
     "Tester",
     "TesterStore",
+    "ToolRunResult",
     "Turn",
     "Workspace",
     "app_installation_org",
+    "build_engine_from_args",
     "configure_logging",
     "default_get",
     "default_robots_allowed",
@@ -102,6 +108,7 @@ __all__ = [
     "load_latest_handoff",
     "log_structured",
     "parse",
+    "parse_json_object",
     "read_plan",
     "ready",
     "reconcile",

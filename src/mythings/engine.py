@@ -484,3 +484,16 @@ class MeteredEngine:
             reply_chars=len(result.text),
         )
         return result
+
+
+def build_engine_from_args(args: Any) -> Engine:
+    """Build an Engine instance from CLI argparse arguments."""
+    engine_type = getattr(args, "engine", "noop")
+    model = getattr(args, "model", None)
+    effort = getattr(args, "effort", None)
+    if engine_type == "claude-cli":
+        return ClaudeCLIEngine(model=model, effort=effort)
+    if engine_type == "gemini-cli":
+        return GeminiCLIEngine(model=model, effort=effort)
+    return NoopEngine()
+
