@@ -2,7 +2,7 @@ import argparse
 import json
 
 from mythings.engine import ClaudeCLIEngine, GeminiCLIEngine, NoopEngine, build_engine_from_args
-from mythings.github import GitHub, Issue
+from mythings.github import GitHub
 from mythings.tool import BaseToolRunner
 
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from mythings.github import GitHub, Issue
-from mythings.policy import ALLOW, Action, Decision, Policy, PolicyResult
+from mythings.policy import ALLOW, Action, Policy, PolicyResult
 
 
 class DefaultPolicy:
