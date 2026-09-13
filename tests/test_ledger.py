@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from mythings.ledger import Ledger, LedgerEntry
+from mythings.ledger import Ledger, LedgerEntry, render_resume_pack
 
 
 def test_append_is_additive_and_roundtrips(tmp_path: Path) -> None:
@@ -39,3 +39,57 @@ def test_append_creates_parent_dirs(tmp_path: Path) -> None:
     led = Ledger(tmp_path / "nested" / "deep" / "run.jsonl")
     led.record("t", "k", "o")
     assert led.path.exists()
+
+
+def test_token_tracking_properties() -> None:
+    e = LedgerEntry(
+        tool="my-coder",
+        kind="dispatch",
+        outcome="ok",
+        data={"prompt_tokens": 1000, "completion_tokens": 200, "cost_usd": 0.05},
+    )
+    assert e.prompt_tokens == 1000
+    assert e.completion_tokens == 200
+    assert e.total_tokens == 1200
+    assert e.cost_usd == 0.05
+
+
+def test_get_checkpoint(tmp_path: Path) -> None:
+    led = Ledger(tmp_path / "run.jsonl")
+    led.record(
+        "fleet_dispatch",
+        "dispatch",
+        "failed",
+        detail="test broken_func failed",
+        candidate="my-tool#1",
+        target_symbols=["symbol:broken_func"],
+        failed_tests=["tests/test_core.py::test_broken"],
+        prompt_tokens=500,
+        completion_tokens=100,
+        cost_usd=0.02,
+    )
+    led.record(
+        "fleet_dispatch",
+        "dispatch",
+        "needs_human",
+        detail="capability missing",
+        candidate="my-tool#1",
+        prompt_tokens=300,
+        completion_tokens=50,
+        cost_usd=0.01,
+    )
+
+    cp = led.get_checkpoint("my-tool#1")
+    assert cp is not None
+    assert cp.candidate_id == "my-tool#1"
+    assert cp.last_outcome == "needs_human"
+    assert cp.attempt_count == 2
+    assert cp.total_tokens == 950
+    assert cp.target_symbols == ["symbol:broken_func"]
+    assert cp.failed_tests == ["tests/test_core.py::test_broken"]
+    assert cp.blocker_reason == "capability missing"
+
+    pack = render_resume_pack(cp)
+    assert "Prior Attempt Checkpoint" in pack
+    assert "symbol:broken_func" in pack
+    assert "capability missing" in pack
