@@ -235,3 +235,134 @@ Governs `target_fn`. Never change multiplication factor without review.
         assert "Invariant: Deterministic Multiplier" in acp
         assert "test_service.py::test_target_fn" in acp
         assert "Scope Boundary Constraint" in acp
+
+
+def test_structural_clones_detection():
+    sample1 = """def add_numbers(a: int, b: int) -> int:
+    \"\"\"Add two numbers.\"\"\"
+    result = a + b
+    return result
+
+def identical_copy(a: int, b: int) -> int:
+    \"\"\"Add two numbers.\"\"\"
+    result = a + b
+    return result
+"""
+    sample2 = """def sum_values(x: int, y: int) -> int:
+    # Notice different variable names and docstring, but identical AST shape
+    total = x + y
+    return total
+
+def different_op(x: int, y: int) -> int:
+    return x * y
+"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "mod1.py").write_text(sample1)
+        (root / "mod2.py").write_text(sample2)
+
+        graph = CodebaseGraph.in_memory()
+        extractor = PythonAstExtractor(repo_root=root)
+        extractor.index_repo(graph)
+
+        clones = graph.find_structural_clones(min_lines=3)
+        assert len(clones) >= 1
+
+        types = {c.clone_type for c in clones}
+        # Both exact clone group (add_numbers & identical_copy) and
+        # structural clone group (with sum_values)
+        assert "exact" in types or "structural" in types
+        all_clone_names = {n.name for c in clones for n in c.nodes}
+        assert "add_numbers" in all_clone_names
+        assert "identical_copy" in all_clone_names
+        assert "sum_values" in all_clone_names
+        assert "different_op" not in all_clone_names
+
+
+def test_test_gaps_and_untested_invariants():
+    service_code = """def caller_service(x: int) -> int:
+    return untest_helper(x) + tested_helper(x)
+
+def untest_helper(x: int) -> int:
+    return x * 10
+
+def tested_helper(x: int) -> int:
+    return x + 1
+"""
+    test_code = """from service import tested_helper
+
+def test_tested_helper():
+    assert tested_helper(5) == 6
+"""
+    doc_code = """# Architectural Decision Record
+
+## Invariant: Untested Contract
+Governs `untest_helper`. Must remain scaled by 10.
+"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "src").mkdir()
+        (root / "src" / "service.py").write_text(service_code)
+        (root / "tests").mkdir()
+        (root / "tests" / "test_service.py").write_text(test_code)
+        (root / "docs").mkdir()
+        (root / "docs" / "adr.md").write_text(doc_code)
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+        MarkdownExtractor(repo_root=root).index_docs(graph)
+
+        # untest_helper is called by caller_service, but has 0 test callers!
+        gaps = graph.find_test_gaps(min_callers=1)
+        gap_names = {g.symbol.name for g in gaps}
+        assert "untest_helper" in gap_names
+        assert "tested_helper" not in gap_names
+
+        # Invariant governs untest_helper which has no tests
+        untested_invs = graph.find_untested_invariants()
+        assert len(untested_invs) == 1
+        assert "untested-contract" in untested_invs[0].invariant.id
+
+
+def test_circular_imports_and_unreferenced_symbols():
+    code_a = "from mod_b import b_fn\ndef a_fn(): return b_fn()\n"
+    code_b = "from mod_a import a_fn\ndef b_fn(): return 1\ndef _dead_internal(): return 99\n"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "mod_a.py").write_text(code_a)
+        (root / "mod_b.py").write_text(code_b)
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        # Circular import mod_a <-> mod_b
+        cycles = graph.find_circular_imports()
+        assert len(cycles) == 1
+        assert "module:mod_a" in cycles[0]
+        assert "module:mod_b" in cycles[0]
+
+        # Dead internal symbol _dead_internal has zero callers
+        unreferenced = graph.find_unreferenced_symbols()
+        assert any(u.name == "_dead_internal" for u in unreferenced)
+
+
+def test_cli_entrypoint(capsys):
+    from mythings.graph import main
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "calc.py").write_text("def calc(a, b): return a + b\n")
+
+        # CLI index
+        ret = main(["index", str(root)])
+        assert ret == 0
+        db_path = root / ".mythings" / "graph.sqlite"
+        assert db_path.exists()
+
+        # CLI analyze --json
+        ret_anl = main(["analyze", str(root), "--json"])
+        assert ret_anl == 0
+        captured = capsys.readouterr()
+        assert "clones" in captured.out
+        assert "test_gaps" in captured.out

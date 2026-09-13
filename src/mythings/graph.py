@@ -10,6 +10,7 @@ Provides:
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 import re
@@ -58,6 +59,39 @@ class BlastRadius:
     tests: list[Node] = field(default_factory=list)
     invariants: list[Node] = field(default_factory=list)
     docs: list[Node] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CloneGroup:
+    """A set of duplicate or near-duplicate function/method nodes."""
+
+    hash_value: str
+    clone_type: Literal["exact", "structural"]
+    nodes: list[Node] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TestGap:
+    """A production symbol with dependent callers but zero direct tests."""
+
+    symbol: Node
+    caller_count: int
+    callers: list[Node] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class UntestedInvariant:
+    """An ADR or Invariant specification whose governed code symbols lack test verification."""
+
+    invariant: Node
+    governed_symbols: list[Node] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CircularImport:
+    """A detected cyclic import path between modules."""
+
+    cycle: list[str]  # e.g. ["module:a", "module:b", "module:a"]
 
 
 class CodebaseGraph:
@@ -402,6 +436,264 @@ class CodebaseGraph:
             docs=docs,
         )
 
+    def find_structural_clones(self, min_lines: int = 3) -> list[CloneGroup]:
+        """Discover exact and AST structural code clones across functions and methods."""
+        query = """
+        SELECT * FROM nodes
+        WHERE kind IN ('function', 'method')
+          AND (end_line - start_line + 1) >= ?
+        """
+        rows = self.conn.execute(query, (min_lines,)).fetchall()
+        nodes = [self._row_to_node(r) for r in rows]
+
+        exact_groups: dict[str, list[Node]] = {}
+        for n in nodes:
+            if n.content_hash:
+                exact_groups.setdefault(n.content_hash, []).append(n)
+
+        shape_groups: dict[str, list[Node]] = {}
+        for n in nodes:
+            s_hash = n.metadata.get("shape_hash")
+            if s_hash:
+                shape_groups.setdefault(s_hash, []).append(n)
+
+        results: list[CloneGroup] = []
+        seen_node_sets: set[frozenset[str]] = set()
+
+        for chash, grp in exact_groups.items():
+            if len(grp) >= 2:
+                results.append(CloneGroup(hash_value=chash, clone_type="exact", nodes=grp))
+                seen_node_sets.add(frozenset(n.id for n in grp))
+
+        for shash, grp in shape_groups.items():
+            if len(grp) >= 2:
+                ids = frozenset(n.id for n in grp)
+                if ids not in seen_node_sets:
+                    results.append(CloneGroup(hash_value=shash, clone_type="structural", nodes=grp))
+
+        return results
+
+    def find_test_gaps(self, min_callers: int = 1) -> list[TestGap]:
+        """Identify production symbols with dependent callers but zero direct tests."""
+        query = """
+        SELECT * FROM nodes
+        WHERE kind IN ('function', 'method')
+          AND path NOT LIKE 'tests/%'
+          AND path NOT LIKE '%/tests/%'
+          AND name NOT LIKE 'test_%'
+          AND NOT (name LIKE '__%__' AND kind = 'method')
+        """
+        rows = self.conn.execute(query).fetchall()
+        prod_nodes = [self._row_to_node(r) for r in rows]
+
+        gaps: list[TestGap] = []
+        for n in prod_nodes:
+            callers = self.neighbors(n.id, direction="in", edge_kinds=["calls"])
+            short_callers = self.conn.execute(
+                """
+                SELECT n.* FROM nodes n
+                JOIN edges e ON n.id = e.source_id
+                WHERE e.target_id = ? AND e.kind = 'calls'
+                """,
+                (f"symbol:{n.name}",),
+            ).fetchall()
+            for r in short_callers:
+                c_node = self._row_to_node(r)
+                if c_node not in callers:
+                    callers.append(c_node)
+
+            if len(callers) < min_callers:
+                continue
+
+            has_test = any(
+                "test" in c.path.lower() or c.name.startswith("test_") or "tests/" in c.path
+                for c in callers
+            )
+            if not has_test:
+                gaps.append(TestGap(symbol=n, caller_count=len(callers), callers=callers))
+
+        gaps.sort(key=lambda g: g.caller_count, reverse=True)
+        return gaps
+
+    def find_untested_invariants(self) -> list[UntestedInvariant]:
+        """Find ADR and Invariant documentation nodes whose governed symbols lack test coverage."""
+        query = """
+        SELECT * FROM nodes
+        WHERE kind IN ('invariant', 'adr')
+        """
+        doc_rows = self.conn.execute(query).fetchall()
+        invariants = [self._row_to_node(r) for r in doc_rows]
+
+        untested: list[UntestedInvariant] = []
+        for inv in invariants:
+            sym_query = """
+            SELECT DISTINCT n.* FROM nodes n
+            JOIN edges e ON (
+                (
+                    n.id = e.target_id
+                    OR (e.target_id LIKE 'symbol:%' AND n.name = SUBSTR(e.target_id, 8))
+                )
+                AND e.source_id = ?
+            ) OR (
+                (
+                    n.id = e.source_id
+                    OR (e.source_id LIKE 'symbol:%' AND n.name = SUBSTR(e.source_id, 8))
+                )
+                AND e.target_id = ?
+            )
+            WHERE e.kind IN ('governs', 'satisfies', 'documents')
+              AND n.kind IN ('function', 'method', 'class')
+            """
+            sym_rows = self.conn.execute(sym_query, (inv.id, inv.id)).fetchall()
+            governed = [self._row_to_node(r) for r in sym_rows]
+            if not governed:
+                continue
+
+            any_tested = False
+            for s in governed:
+                callers = self.neighbors(s.id, direction="in", edge_kinds=["calls"])
+                short_callers = self.conn.execute(
+                    """
+                    SELECT n.* FROM nodes n
+                    JOIN edges e ON n.id = e.source_id
+                    WHERE e.target_id = ? AND e.kind = 'calls'
+                    """,
+                    (f"symbol:{s.name}",),
+                ).fetchall()
+                for r in short_callers:
+                    c_node = self._row_to_node(r)
+                    if c_node not in callers:
+                        callers.append(c_node)
+
+                if any(
+                    "test" in c.path.lower() or c.name.startswith("test_") or "tests/" in c.path
+                    for c in callers
+                ):
+                    any_tested = True
+                    break
+
+            if not any_tested:
+                untested.append(UntestedInvariant(invariant=inv, governed_symbols=governed))
+
+        return untested
+
+    def find_circular_imports(self) -> list[list[str]]:
+        """Detect circular module dependencies across imports edges."""
+        query = """
+        SELECT DISTINCT source_id, target_id FROM edges
+        WHERE kind = 'imports' AND source_id LIKE 'module:%'
+        """
+        rows = self.conn.execute(query).fetchall()
+        adj: dict[str, set[str]] = {}
+        for src, tgt in rows:
+            tgt_mod = (
+                tgt
+                if tgt.startswith("module:")
+                else f"module:{tgt.split('symbol:')[-1].rsplit('.', 1)[0]}"
+            )
+            if src != tgt_mod:
+                adj.setdefault(src, set()).add(tgt_mod)
+
+        cycles: list[list[str]] = []
+        visited: set[str] = set()
+        stack: list[str] = []
+        stack_set: set[str] = set()
+
+        def dfs(node: str) -> None:
+            visited.add(node)
+            stack.append(node)
+            stack_set.add(node)
+
+            for neighbor in adj.get(node, ()):
+                if neighbor in stack_set:
+                    idx = stack.index(neighbor)
+                    cycles.append(stack[idx:] + [neighbor])
+                elif neighbor not in visited:
+                    dfs(neighbor)
+
+            stack.pop()
+            stack_set.remove(node)
+
+        for node in list(adj.keys()):
+            if node not in visited:
+                dfs(node)
+
+        unique_cycles: list[list[str]] = []
+        seen_representations: set[str] = set()
+        for c in cycles:
+            core = c[:-1]
+            if not core:
+                continue
+            min_idx = core.index(min(core))
+            norm = tuple(core[min_idx:] + core[:min_idx])
+            rep = "->".join(norm)
+            if rep not in seen_representations:
+                seen_representations.add(rep)
+                unique_cycles.append(list(norm) + [norm[0]])
+
+        return unique_cycles
+
+    def find_unreferenced_symbols(self) -> list[Node]:
+        """Identify internal/private symbols with zero incoming code or documentation edges."""
+        query = """
+        SELECT n.* FROM nodes n
+        WHERE n.kind IN ('function', 'method', 'class')
+          AND n.name LIKE '_%'
+          AND NOT (n.name LIKE '__%__' AND n.kind = 'method')
+          AND n.path NOT LIKE 'tests/%'
+          AND n.path NOT LIKE '%/tests/%'
+          AND NOT EXISTS (
+              SELECT 1 FROM edges e
+              WHERE (
+                  e.target_id = n.id
+                  OR (e.target_id LIKE 'symbol:%' AND n.name = SUBSTR(e.target_id, 8))
+              )
+              AND e.kind != 'contains'
+          )
+        """
+        rows = self.conn.execute(query).fetchall()
+        return [self._row_to_node(r) for r in rows]
+
+
+def _compute_ast_shape_hash(fn_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    """Compute a structural hash of function AST, normalizing variable names and docstrings."""
+    body = fn_node.body
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
+
+    class Normalizer(ast.NodeTransformer):
+        def __init__(self) -> None:
+            self.var_map: dict[str, str] = {}
+            self.counter = 0
+
+        def _get_var(self, name: str) -> str:
+            if name.startswith("__") and name.endswith("__"):
+                return name
+            if name not in self.var_map:
+                self.var_map[name] = f"v_{self.counter}"
+                self.counter += 1
+            return self.var_map[name]
+
+        def visit_Name(self, n: ast.Name) -> ast.Name:
+            return ast.Name(id=self._get_var(n.id), ctx=n.ctx)
+
+        def visit_arg(self, a: ast.arg) -> ast.arg:
+            return ast.arg(arg=self._get_var(a.arg), annotation=None)
+
+    copied = copy.deepcopy(fn_node)
+    copied.name = "fn"
+    copied.body = copy.deepcopy(body)
+    copied.returns = None
+    copied.decorator_list = []
+    normalized = Normalizer().visit(copied)
+    dumped = ast.dump(normalized, include_attributes=False)
+    return hashlib.sha256(dumped.encode("utf-8")).hexdigest()[:16]
+
 
 class PythonAstExtractor:
     """Deterministic extractor for Python source files using standard library `ast`."""
@@ -432,6 +724,7 @@ class PythonAstExtractor:
 
         nodes: list[Node] = []
         edges: list[Edge] = []
+        lines = content.splitlines()
 
         # Derive module id (normalizing src/ prefix if present)
         mod_path = rel_path.removeprefix("src/") if rel_path.startswith("src/") else rel_path
@@ -448,7 +741,7 @@ class PythonAstExtractor:
                 name=mod_name,
                 path=rel_path,
                 start_line=1,
-                end_line=len(content.splitlines()),
+                end_line=len(lines),
                 metadata={"docstring": mod_doc},
                 content_hash=content_hash,
             )
@@ -497,9 +790,10 @@ class PythonAstExtractor:
 
         # Visitor for classes and functions
         class CodeVisitor(ast.NodeVisitor):
-            def __init__(self, parent_id: str, scope_prefix: str) -> None:
+            def __init__(self, parent_id: str, scope_prefix: str, lines: list[str]) -> None:
                 self.parent_id = parent_id
                 self.scope_prefix = scope_prefix
+                self.lines = lines
 
             def visit_ClassDef(self, node: ast.ClassDef) -> None:
                 class_fqn = f"{self.scope_prefix}.{node.name}"
@@ -540,7 +834,7 @@ class PythonAstExtractor:
                         )
                     )
 
-                inner_visitor = CodeVisitor(class_id, class_fqn)
+                inner_visitor = CodeVisitor(class_id, class_fqn, self.lines)
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         inner_visitor.visit_FunctionDef(item, is_method=True)
@@ -561,6 +855,11 @@ class PythonAstExtractor:
                 params = [a.arg for a in node.args.args]
                 ret_type = ast.unparse(node.returns) if node.returns else None
 
+                fn_lines = self.lines[(node.lineno - 1) : node.end_lineno]
+                fn_src = "\n".join(fn_lines)
+                fn_content_hash = hashlib.sha256(fn_src.strip().encode("utf-8")).hexdigest()[:16]
+                shape_hash = _compute_ast_shape_hash(node)
+
                 nodes.append(
                     Node(
                         id=fn_id,
@@ -574,7 +873,9 @@ class PythonAstExtractor:
                             "params": params,
                             "returns": ret_type,
                             "is_async": isinstance(node, ast.AsyncFunctionDef),
+                            "shape_hash": shape_hash,
                         },
+                        content_hash=fn_content_hash,
                     )
                 )
                 edges.append(Edge(source_id=self.parent_id, target_id=fn_id, kind="contains"))
@@ -616,7 +917,7 @@ class PythonAstExtractor:
                                 )
                             )
 
-        top_visitor = CodeVisitor(mod_id, mod_name)
+        top_visitor = CodeVisitor(mod_id, mod_name, lines)
         for stmt in tree.body:
             if isinstance(stmt, ast.ClassDef):
                 top_visitor.visit_ClassDef(stmt)
@@ -840,3 +1141,174 @@ def render_context_pack(graph: CodebaseGraph, seed_id: str, repo_root: str | Pat
     lines_out.append("")
 
     return "\n".join(lines_out)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entrypoint for mythings.graph: index, analyze, and render ACP."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(prog="python -m mythings.graph")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    idx_p = sub.add_parser("index", help="Index a repository into SQLite graph")
+    idx_p.add_argument("repo", type=Path, help="Repository root path")
+    idx_p.add_argument("--db", type=Path, default=None, help="Output SQLite database path")
+
+    anl_p = sub.add_parser(
+        "analyze", help="Analyze codebase graph for clones, test gaps, and issues"
+    )
+    anl_p.add_argument("repo", type=Path, help="Repository root path or SQLite database path")
+    anl_p.add_argument(
+        "--clones", action="store_true", help="Detect structural and exact code clones"
+    )
+    anl_p.add_argument(
+        "--test-gaps", action="store_true", help="Detect production symbols lacking tests"
+    )
+    anl_p.add_argument(
+        "--untested-invariants", action="store_true", help="Detect untested ADRs/invariants"
+    )
+    anl_p.add_argument("--cycles", action="store_true", help="Detect circular module imports")
+    anl_p.add_argument("--unreferenced", action="store_true", help="Detect dead internal symbols")
+    anl_p.add_argument("--json", action="store_true", help="Output findings as JSON")
+
+    acp_p = sub.add_parser("acp", help="Render Agent Context Pack for a seed symbol")
+    acp_p.add_argument("repo", type=Path, help="Repository root path")
+    acp_p.add_argument("symbol", help="Target symbol ID or name")
+    acp_p.add_argument("--db", type=Path, default=None, help="SQLite database path")
+
+    args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+
+    if args.cmd == "index":
+        repo_path = args.repo.resolve()
+        db_path = args.db or (repo_path / ".mythings" / "graph.sqlite")
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        graph = CodebaseGraph(db_path)
+        PythonAstExtractor(repo_root=repo_path).index_repo(graph)
+        MarkdownExtractor(repo_root=repo_path).index_docs(graph)
+        graph.close()
+        print(f"Indexed {repo_path} -> {db_path}")
+        return 0
+
+    if args.cmd == "acp":
+        repo_path = args.repo.resolve()
+        db_path = args.db or (repo_path / ".mythings" / "graph.sqlite")
+        if not db_path.exists():
+            graph = CodebaseGraph.in_memory()
+            PythonAstExtractor(repo_root=repo_path).index_repo(graph)
+            MarkdownExtractor(repo_root=repo_path).index_docs(graph)
+        else:
+            graph = CodebaseGraph(db_path)
+        seed_id = args.symbol if args.symbol.startswith("symbol:") else f"symbol:{args.symbol}"
+        if not graph.get_node(seed_id):
+            matches = graph.find_symbols(args.symbol)
+            if matches:
+                seed_id = matches[0].id
+        pack = render_context_pack(graph, seed_id, repo_root=repo_path)
+        print(pack)
+        graph.close()
+        return 0
+
+    if args.cmd == "analyze":
+        repo_path = args.repo.resolve()
+        if repo_path.is_file():
+            graph = CodebaseGraph(repo_path)
+        else:
+            db_path = repo_path / ".mythings" / "graph.sqlite"
+            if db_path.exists():
+                graph = CodebaseGraph(db_path)
+            else:
+                graph = CodebaseGraph.in_memory()
+                PythonAstExtractor(repo_root=repo_path).index_repo(graph)
+                MarkdownExtractor(repo_root=repo_path).index_docs(graph)
+
+        run_all = not (
+            args.clones
+            or args.test_gaps
+            or args.untested_invariants
+            or args.cycles
+            or args.unreferenced
+        )
+
+        data: dict[str, Any] = {}
+        if run_all or args.clones:
+            clones = graph.find_structural_clones()
+            data["clones"] = [
+                {
+                    "hash": c.hash_value,
+                    "type": c.clone_type,
+                    "nodes": [{"id": n.id, "path": n.path, "name": n.name} for n in c.nodes],
+                }
+                for c in clones
+            ]
+
+        if run_all or args.test_gaps:
+            gaps = graph.find_test_gaps()
+            data["test_gaps"] = [
+                {
+                    "symbol": g.symbol.id,
+                    "path": g.symbol.path,
+                    "name": g.symbol.name,
+                    "caller_count": g.caller_count,
+                    "callers": [c.id for c in g.callers],
+                }
+                for g in gaps
+            ]
+
+        if run_all or args.untested_invariants:
+            untested = graph.find_untested_invariants()
+            data["untested_invariants"] = [
+                {
+                    "invariant": u.invariant.id,
+                    "path": u.invariant.path,
+                    "name": u.invariant.name,
+                    "governed_symbols": [s.id for s in u.governed_symbols],
+                }
+                for u in untested
+            ]
+
+        if run_all or args.cycles:
+            cycles = graph.find_circular_imports()
+            data["circular_imports"] = cycles
+
+        if run_all or args.unreferenced:
+            dead = graph.find_unreferenced_symbols()
+            data["unreferenced_symbols"] = [
+                {"id": n.id, "path": n.path, "name": n.name} for n in dead
+            ]
+
+        graph.close()
+
+        if args.json:
+            print(json.dumps(data, indent=2))
+        else:
+            if "clones" in data and data["clones"]:
+                print(f"=== Structural Clones ({len(data['clones'])}) ===")
+                for c in data["clones"]:
+                    names = ", ".join(f"{n['path']}:{n['name']}" for n in c["nodes"])
+                    print(f"  [{c['type']}] {c['hash']}: {names}")
+            if "test_gaps" in data and data["test_gaps"]:
+                print(f"\n=== Test Gaps ({len(data['test_gaps'])}) ===")
+                for g in data["test_gaps"]:
+                    print(f"  {g['symbol']} ({g['path']}) has {g['caller_count']} callers, 0 tests")
+            if "untested_invariants" in data and data["untested_invariants"]:
+                print(f"\n=== Untested Invariants ({len(data['untested_invariants'])}) ===")
+                for u in data["untested_invariants"]:
+                    sym_count = len(u["governed_symbols"])
+                    print(f"  {u['invariant']} ({u['path']}) -> {sym_count} untested symbols")
+            if "circular_imports" in data and data["circular_imports"]:
+                print(f"\n=== Circular Imports ({len(data['circular_imports'])}) ===")
+                for cyc in data["circular_imports"]:
+                    print(f"  {' -> '.join(cyc)}")
+            if "unreferenced_symbols" in data and data["unreferenced_symbols"]:
+                print(f"\n=== Unreferenced Symbols ({len(data['unreferenced_symbols'])}) ===")
+                for d in data["unreferenced_symbols"]:
+                    print(f"  {d['id']} ({d['path']})")
+
+        return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())
