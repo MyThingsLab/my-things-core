@@ -55,6 +55,37 @@ def test_claude_cli_engine_omits_optional_flags_when_unset() -> None:
     assert argv[-1] == "x"  # prompt still positional-last, not swallowed
 
 
+def test_claude_cli_engine_passes_cwd_to_runner(tmp_path) -> None:
+    seen_cwd: list[object] = []
+
+    def cwd_runner(argv: list[str], *, cwd=None) -> str:
+        seen_cwd.append(cwd)
+        return json.dumps({"result": "ok", "is_error": False})
+
+    # Engine-level cwd
+    eng = ClaudeCLIEngine(cwd=tmp_path, runner=cwd_runner)
+    eng.run(EngineRequest(prompt="x"))
+    assert seen_cwd == [tmp_path]
+
+    # Request-level cwd override
+    other_path = tmp_path / "other"
+    eng.run(EngineRequest(prompt="x", cwd=other_path))
+    assert seen_cwd == [tmp_path, other_path]
+
+
+def test_default_claude_runner_passes_cwd_to_subprocess(monkeypatch, tmp_path) -> None:
+    captured_kwargs: list[dict] = []
+
+    def mock_run(*args, **kwargs):
+        captured_kwargs.append(kwargs)
+        return _FakeCompletedProcess(0, stdout='{"result": "ok"}')
+
+    monkeypatch.setattr(engine_module.subprocess, "run", mock_run)
+
+    engine_module._claude(["-p", "x"], cwd=tmp_path)
+    assert captured_kwargs[0].get("cwd") == tmp_path
+
+
 def test_claude_cli_engine_degrades_to_empty_on_nonzero_exit() -> None:
     # The default runner returns "" on a nonzero exit; assert that a blank
     # reply degrades exactly like NoopEngine's, not an exception.
