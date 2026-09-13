@@ -119,6 +119,8 @@ def validate(facets: Facets) -> Validation:
     reasons: list[str] = []
     if facets.lane is None:
         reasons.append("missing lane")
+    if facets.prio is None:
+        reasons.append("missing prio")
     if facets.size is None:
         reasons.append("missing size")
     elif facets.size == "L":
