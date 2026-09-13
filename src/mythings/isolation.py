@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -42,10 +43,30 @@ class Workspace:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        if self.path is not None:
-            _git(self.repo, ["worktree", "remove", "--force", str(self.path)])
-            self.path = None
-        if self._tmp is not None:
-            # `worktree remove` empties `tree/`; drop the prefix dir we made.
-            Path(self._tmp).rmdir()
-            self._tmp = None
+        # `worktree remove` failing leaves the repo genuinely inconsistent -- a
+        # registered worktree pointing at a path nobody owns -- so it still
+        # raises. Dropping the scratch dir is not in that category, and it must
+        # happen even when the removal above did raise, or the leak compounds.
+        try:
+            if self.path is not None:
+                _git(self.repo, ["worktree", "remove", "--force", str(self.path)])
+                self.path = None
+        finally:
+            if self._tmp is not None:
+                # Not `rmdir`: `worktree remove` empties `tree/`, but says nothing
+                # about siblings of it, and this dir is only assumed to hold
+                # `tree/`. Anything the body wrote here made cleanup raise *from
+                # `__exit__`* -- after the body had already produced its result --
+                # so a completed run was reported as a traceback and its outcome
+                # discarded.
+                #
+                # Not hypothetical: a module that resolves a path by climbing out
+                # of its own source tree lands here. `parents[3]` from
+                # `<prefix>/tree/src/pkg/mod.py` is `<prefix>`, so a suite run in
+                # the worktree creates the sibling on import.
+                #
+                # The prefix dir is ours by construction, so everything under it
+                # is ours to delete, and failing to delete scratch is never worth
+                # losing the body's outcome over.
+                shutil.rmtree(self._tmp, ignore_errors=True)
+                self._tmp = None

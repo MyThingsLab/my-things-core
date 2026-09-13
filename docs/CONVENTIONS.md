@@ -270,15 +270,19 @@ warn-only runs show the real signal, flip `continue-on-error` to `false` (or
 scope it to only the runtime `dependencies`, which for `my-things-core` is
 empty by design) and it becomes a real gate like the rest of this table.
 
-## The CLAUDE.md hierarchy
+## The AGENTS.md hierarchy
+
+Every tool repo contains a canonical `AGENTS.md` file, with `CLAUDE.md` and `GEMINI.md`
+vendored as symlinks to `AGENTS.md` so that Claude Code, Gemini CLI, Antigravity,
+and other agent runtimes read the identical instructions with zero drift.
 
 Loaded outermost → innermost:
 
-1. `~/.claude/CLAUDE.md` — personal, all projects. **Keep MyThingsLab rules out of
+1. `~/.claude/CLAUDE.md` or `~/.gemini/GEMINI.md` — personal, all projects. **Keep MyThingsLab rules out of
    here** so they don't leak into unrelated work.
-2. `MyThingsLab/CLAUDE.md` — workspace-level, when working across both repos.
-3. `<repo>/CLAUDE.md` — travels with a standalone clone; inherits `./HARNESS.md`
-   and fills the per-tool seams. This is the one that must be self-contained.
+2. `MyThingsLab/AGENTS.md` (and `CLAUDE.md` / `GEMINI.md` symlinks) — workspace-level, cross-cutting facts.
+3. `<repo>/AGENTS.md` (and `CLAUDE.md` / `GEMINI.md` symlinks) — travels with a standalone clone; inherits
+   `./HARNESS.md` and fills the per-tool seams. This is the one that must be self-contained.
 
 `@path` imports keep things DRY *within* the workspace but don't resolve for a
 lone clone — hence each tool **vendors** `HARNESS.md` rather than importing it,
@@ -286,6 +290,8 @@ with a drift-check test failing CI if the copy goes stale. After editing the
 canonical `harness.md`, sweep every sibling checkout in one command instead of
 hand-copying: `python -m mythings._harness <workspace-root>` (add `--check` to
 just report drift, exit 1 if any copy is stale).
+Similarly, `python -m mythings._agents <workspace-root>` enforces canonical `AGENTS.md`
+and symlinks across the fleet.
 
 ## Starting a new tool
 
@@ -293,8 +299,8 @@ just report drift, exit 1 if any copy is stale).
    `.gitignore`, LICENSE, `.pre-commit-config.yaml`, `dev-ledger/`, `HARNESS.md`,
    the drift-check test) to `../my-<x>` and replace the `template` placeholder —
    see its README for the exact rename. `my-template` mirrors
-   [`CLAUDE.template.md`](CLAUDE.template.md) as its `CLAUDE.md`.
-2. Fill the five seams in the copied `CLAUDE.md` (a seam-check test in the
+   [`AGENTS.template.md`](AGENTS.template.md) as its `AGENTS.md` with `CLAUDE.md` and `GEMINI.md` symlinks.
+2. Fill the five seams in the copied `AGENTS.md` (a seam-check test in the
    scaffold fails CI while any is left unfilled after the rename).
 3. `pip install -e ../my-things-core -e ".[dev]" && pre-commit install`.
 4. Red → green → refactor locally; open a PR; let CI gate it.

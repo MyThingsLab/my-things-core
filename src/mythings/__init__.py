@@ -1,6 +1,13 @@
 from importlib.metadata import version
 
-from mythings.engine import ClaudeCLIEngine, Engine, EngineRequest, EngineResult, NoopEngine
+from mythings.engine import (
+    ClaudeCLIEngine,
+    Engine,
+    EngineRequest,
+    EngineResult,
+    GeminiCLIEngine,
+    NoopEngine,
+)
 from mythings.fetch import (
     FetchResult,
     Getter,
@@ -44,6 +51,7 @@ __all__ = [
     "EngineResult",
     "FetchResult",
     "Fetcher",
+    "GeminiCLIEngine",
     "Getter",
     "GitHub",
     "GitHubError",

@@ -99,6 +99,20 @@ def _claude_stream(argv: list[str], stdin_text: str) -> str:
     return _stdout_or_failure(proc)
 
 
+def _gemini(argv: list[str]) -> str:
+    bin_name = os.environ.get("GEMINI_CLI_BIN", "agy")
+    proc = subprocess.run([bin_name, *argv], capture_output=True, text=True)
+    return _stdout_or_failure(proc)
+
+
+def _gemini_stream(argv: list[str], stdin_text: str) -> str:
+    bin_name = os.environ.get("GEMINI_CLI_BIN", "agy")
+    proc = subprocess.run(
+        [bin_name, *argv], input=stdin_text, capture_output=True, text=True
+    )
+    return _stdout_or_failure(proc)
+
+
 # Models routinely wrap JSON replies in a ```json fence despite a system
 # prompt saying not to (verified against claude-haiku-4-5 at low effort).
 # Strip one whole-string fence here so every consumer's json.loads(result.text)
@@ -252,6 +266,90 @@ class ClaudeCLIEngine:
             if obj.get("type") == "result":
                 result = obj
         return result
+
+
+class GeminiCLIEngine:
+    # Shells out to the Gemini / Antigravity CLI in headless print mode instead of
+    # an SDK: no new dependency, and it reuses whatever auth is already configured
+    # on the machine. Tools are disabled or non-interactive print mode —
+    # this seam returns judgment only, never a side effect.
+    # Never raises: a CLI failure or unparsable reply degrades to
+    # EngineResult(text="", ...), matching ClaudeCLIEngine / NoopEngine contract.
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        effort: str | None = None,
+        runner: Runner = _gemini,
+        stream_runner: StreamRunner = _gemini_stream,
+    ) -> None:
+        self._model = model
+        self._effort = effort
+        self._run = runner
+        self._run_stream = stream_runner
+
+    def run(self, request: EngineRequest) -> EngineResult:
+        if request.images:
+            return self._run_multimodal(request)
+
+        argv = ["-p", request.prompt, "--output-format", "json"]
+        if self._model:
+            argv += ["--model", self._model]
+        if self._effort:
+            argv += ["--effort", self._effort]
+
+        raw = self._run(argv)
+        try:
+            obj = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            obj = {}
+
+        is_error = obj.get("is_error") or (obj.get("status") and obj.get("status") != "SUCCESS")
+        result_str = obj.get("response") or obj.get("result") or ""
+        text = "" if is_error else _strip_code_fence(result_str)
+        return EngineResult(text=text, data=obj)
+
+    def _run_multimodal(self, request: EngineRequest) -> EngineResult:
+        argv = [
+            "-p",
+            request.prompt,
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
+        ]
+        if self._model:
+            argv += ["--model", self._model]
+        if self._effort:
+            argv += ["--effort", self._effort]
+
+        content: list[dict[str, Any]] = [{"type": "text", "text": request.prompt}]
+        for image in request.images:
+            content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": base64.b64encode(image).decode("ascii"),
+                    },
+                }
+            )
+        stdin_text = (
+            json.dumps({"type": "user", "message": {"role": "user", "content": content}}) + "\n"
+        )
+
+        raw = self._run_stream(argv, stdin_text)
+        obj = ClaudeCLIEngine._last_result_line(raw)
+        if not obj:
+            try:
+                obj = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                obj = {}
+        is_error = obj.get("is_error") or (obj.get("status") and obj.get("status") != "SUCCESS")
+        result_str = obj.get("response") or obj.get("result") or ""
+        text = "" if is_error else _strip_code_fence(result_str)
+        return EngineResult(text=text, data=obj)
 
 
 class CachingEngine:
