@@ -22,6 +22,20 @@ that only read the tuple's shape are unaffected.
 never created it and it was absent on repos nobody had labelled by hand. It
 stays unprefixed and continues to surface in `Facets.unknown`.
 
+## [1.2.0] - 2026-09-12
+
+Adds `mythings.session` (ADR 0006): an append-only JSONL store for the CAD
+loop's units of work — `TaskRecord`, `Verdict`/`Check` (the persisted form of
+the acceptance gate's assessment, three-way `passed` included), `GoalRecord`,
+and `GoalJournalEntry`. `record()`/`load()` to write and read, `tasks()`/
+`goals()` to collapse to the latest line per id, `journal()` to keep every
+event, `ready()` (fail-closed on a dangling dependency, same as `plan.ready()`)
+for what is dispatchable and `running()` for what an interrupted session has to
+recover. `load()` drops a torn final line and raises `CorruptStore` for a bad
+line anywhere else. A seam module, not a sixth load-bearing contract, and not
+exported from `mythings/__init__` — `Session` there is
+`mythings.testers.Session`.
+
 ## [1.1.0] - 2026-09-12
 
 Adds `mythings.labels` (ADR 0005): the 22-label CAD schema (`lane:*`,
