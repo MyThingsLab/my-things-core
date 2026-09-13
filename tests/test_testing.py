@@ -7,13 +7,32 @@ import pytest
 from mythings.engine import EngineRequest
 from mythings.ledger import Ledger
 from mythings.testing import (
+    FakeCliRunner,
     FakeGh,
+    FakeTransport,
     ScriptedEngine,
     fake_fetch,
     ledger_entry,
     make_git_repo,
     make_ledgers,
 )
+
+
+def test_fake_transport_records_sent_messages_and_commands() -> None:
+    transport = FakeTransport(updates=[{"update_id": 1}])
+    msg_id = transport.send_message("hello", chat_id="123", markdown=True)
+    assert msg_id == 1
+    assert transport.sent == [("hello", None)]
+    assert transport.sent_to == ["123"]
+    assert transport.fetch_updates() == [{"update_id": 1}]
+
+
+def test_fake_cli_runner_records_and_matches() -> None:
+    runner = FakeCliRunner({("cmd", "sub"): "out\n"})
+    assert runner(["cmd", "sub", "arg"]) == "out\n"
+    assert runner(["cmd", "other"]) == "ok"
+    assert runner.saw("cmd", "sub")
+
 
 
 def test_fake_gh_fixed_reply_and_recording() -> None:

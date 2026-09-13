@@ -163,3 +163,91 @@ def attended_env(monkeypatch: pytest.MonkeyPatch) -> None:
     # (fail-closed) — a real behavior a suite must opt into deliberately,
     # not inherit from the runner's env.
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
+class FakeTransport:
+    # Mocks the Telegram HTTP transport boundary (send_message, fetch_updates, etc.)
+    def __init__(self, *, updates: list[dict] | None = None) -> None:
+        self.sent: list[tuple[str, Any]] = []
+        self.sent_to: list[str | None] = []
+        self.keyboards: list[tuple[tuple[str, ...], ...] | None] = []
+        self.commands_set: list[tuple[tuple[str, str], ...]] = []
+        self.fetched: list[tuple[int | None, float]] = []
+        self.answered: list[str] = []
+        self.markdown: list[bool] = []
+        self.actions: list[tuple[str, str | None]] = []
+        self.cleared: list[int] = []
+        self.edits: list[tuple[int, str]] = []
+        self.answers: list[tuple[str, str]] = []
+        self.alerts: list[bool] = []
+        self.reply_to: list[int | None] = []
+        self._updates = updates or []
+        self._next_id = 1
+
+    def send_message(
+        self,
+        text: str,
+        *,
+        chat_id: str | None = None,
+        inline: Any = None,
+        keyboard: tuple[tuple[str, ...], ...] | None = None,
+        markdown: bool = False,
+        reply_to_message_id: int | None = None,
+    ) -> int:
+        self.sent.append((text, inline))
+        self.sent_to.append(chat_id)
+        self.keyboards.append(keyboard)
+        self.markdown.append(markdown)
+        self.reply_to.append(reply_to_message_id)
+        message_id = self._next_id
+        self._next_id += 1
+        return message_id
+
+    def send_chat_action(self, action: str, *, chat_id: str | None = None) -> None:
+        self.actions.append((action, chat_id))
+
+    def clear_inline_keyboard(self, message_id: int, *, chat_id: str | None = None) -> None:
+        self.cleared.append(message_id)
+
+    def edit_message_text(self, message_id: int, text: str, *, chat_id: str | None = None) -> None:
+        self.edits.append((message_id, text))
+
+    def set_my_commands(self, commands: tuple[tuple[str, str], ...]) -> None:
+        self.commands_set.append(commands)
+
+    def answer_callback_query(
+        self, callback_query_id: str, *, text: str = "", alert: bool = False
+    ) -> None:
+        self.answered.append(callback_query_id)
+        self.answers.append((callback_query_id, text))
+        self.alerts.append(alert)
+
+    def fetch_updates(self, *, offset: int | None = None, timeout: float = 0) -> list[dict]:
+        self.fetched.append((offset, timeout))
+        if offset is None:
+            return list(self._updates)
+        return [u for u in self._updates if u["update_id"] >= offset]
+
+
+class FakeCliRunner:
+    # Fakes a CLI subcommand runner. Records invocations and returns canned outputs.
+    def __init__(
+        self,
+        responses: dict[tuple[str, ...], str] | None = None,
+        *,
+        default_output: str = "ok",
+    ) -> None:
+        self.responses: dict[tuple[str, ...], str] = dict(responses or {})
+        self.calls: list[list[str]] = []
+        self.default_output = default_output
+
+    def __call__(self, argv: list[str]) -> str:
+        self.calls.append(argv)
+        for key in (tuple(argv[:2]), tuple(argv[:1])):
+            if key in self.responses:
+                return self.responses[key]
+        return self.default_output
+
+    def saw(self, *prefix: str) -> bool:
+        return any(call[: len(prefix)] == list(prefix) for call in self.calls)
+
