@@ -139,7 +139,7 @@ def test_reconcile_skips_tasks_with_no_issue_or_already_done() -> None:
 
 
 def test_parse_plan_extracts_milestone_and_roundtrips() -> None:
-    from mythings.plan import Plan, parse_plan, render
+    from mythings.plan import parse_plan, render
 
     text = "# Goal: goal/cad-foundation\n\n" + _TABLE
     plan = parse_plan(text)
@@ -160,7 +160,9 @@ def test_reconcile_plan_detects_milestone_drift() -> None:
     )
     runner = FakeGh(
         {
-            ("issue", "view"): json.dumps({"milestone": {"title": "different-milestone"}, "state": "OPEN"}),
+            ("issue", "view"): json.dumps(
+                {"milestone": {"title": "different-milestone"}, "state": "OPEN"}
+            ),
             ("pr", "list"): json.dumps([]),
         }
     )

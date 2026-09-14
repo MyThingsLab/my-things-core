@@ -181,7 +181,17 @@ def _issue_state(repo: str, number: int, runner: Runner) -> str:
 
 
 def _issue_milestone(repo: str, number: int, runner: Runner) -> str | None:
-    argv = ["issue", "view", str(number), "--repo", repo, "--json", "milestone", "-q", ".milestone.title"]
+    argv = [
+        "issue",
+        "view",
+        str(number),
+        "--repo",
+        repo,
+        "--json",
+        "milestone",
+        "-q",
+        ".milestone.title",
+    ]
     raw = runner(argv).strip()
     return raw if raw and raw != "null" else None
 
