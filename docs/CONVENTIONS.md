@@ -88,6 +88,24 @@ design a precedence rule then — not a problem this document is pre-solving.
 | v1 repo's version and CHANGELOG agree | `release.md` | `check_version_changelog()` in that repo's own pytest suite |
 | RELEASE.md rules stay in sync | this doc | drift-check test (`RELEASE.md` == canonical), same shape as harness |
 | v1-to-v1 dependency is pinned, not floating | `release.md` | review; `pyproject.toml`/CI install line names an exact tag |
+| Unified Commit, Issue & PR Schemas | `harness.md` | drift-check test + `.github` templates |
+
+## Unified Schemas (Commit, Issue, PR)
+
+To maintain fleet-wide consistency across automated agents and human developers, all repos enforce unified schemas:
+
+- **Commit Schema**: `<type>(<scope>): <short imperative summary>`
+  - Types: `fix`, `feat`, `test`, `docs`, `chore`, `refactor`, `style`, `perf`, `ci`.
+  - Subject line: Lowercase imperative, max 72 characters, no trailing period.
+  - Optional body & trailers: Explain non-obvious context; include `Closes #<issue-number>` and `Co-authored-by: ...`.
+- **Issue Creation Schema**:
+  - Title: `<repo/area>: <imperative summary>` (e.g., `fleet: isolate DISPATCH_LEDGER in test fixtures`).
+  - Labels: Must assign all 5 CAD facets (`lane:`, `prio:`, `kind:`, `size:`, `state:`).
+  - Body Sections: Context & Problem Statement, Acceptance Criteria (checklist), Technical Seams & Implementation Outline, Verification & Reproduction, Related Issues.
+- **PR Drafting Schema**:
+  - Title: `<type>(<scope>): <short imperative summary>`.
+  - Body Sections: Summary of Changes, `Closes #<issue-number>`, Empirical Verification Output (`pytest` & `ruff check`), Safety Checklist.
+  - Open as **Draft** first; mark ready only when verification succeeds and CI passes.
 
 ## Filing bugs
 
