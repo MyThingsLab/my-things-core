@@ -168,16 +168,29 @@ class CodebaseGraph:
         # row -- quadratic, and measurably ~450x slower on the recursive caller
         # walk. Materialise the same answer once per traversal into an indexed
         # temp table so each lookup is an index seek.
-        with self.conn:
-            self.conn.executescript(
-                """
-                DROP TABLE IF EXISTS temp.resolved_symbol;
-                CREATE TEMP TABLE resolved_symbol AS
-                SELECT node_id, 'symbol:' || name AS sym FROM resolvable_names;
-                CREATE UNIQUE INDEX temp.idx_resolved_node ON resolved_symbol(node_id);
-                CREATE INDEX temp.idx_resolved_sym ON resolved_symbol(sym);
-                """
-            )
+        #
+        # Built with plain execute() rather than executescript(): the latter
+        # issues an implicit COMMIT, which fails with "database table is
+        # locked" whenever the caller is iterating a cursor on this same
+        # connection -- `for row in conn.execute(...): graph.blast_radius(...)`
+        # is the obvious way to use this API, so it must not crash. For the
+        # same reason the table is emptied and refilled rather than dropped.
+        self.conn.execute(
+            """
+            CREATE TEMP TABLE IF NOT EXISTS resolved_symbol
+            (node_id TEXT PRIMARY KEY, sym TEXT)
+            """
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS temp.idx_resolved_sym ON resolved_symbol(sym)"
+        )
+        self.conn.execute("DELETE FROM resolved_symbol")
+        self.conn.execute(
+            """
+            INSERT INTO resolved_symbol (node_id, sym)
+            SELECT node_id, 'symbol:' || name FROM resolvable_names
+            """
+        )
 
     def add_node(self, node: Node) -> None:
         with self.conn:
@@ -563,17 +576,17 @@ class CodebaseGraph:
     def find_test_gaps(self, min_callers: int = 1) -> list[TestGap]:
         """Identify production symbols with dependent callers but zero direct tests."""
         self._refresh_resolution_index()
+        # What counts as a test is decided in exactly one place, `_is_test_node`.
+        # Spelling it again in SQL drifts: `_` is a single-character LIKE
+        # wildcard, so a `NOT LIKE '%_test.py'` meant to skip `parser_test.py`
+        # also silently swallowed `latest.py` and `pytest.py`.
         query = """
         SELECT * FROM nodes
         WHERE kind IN ('function', 'method')
-          AND path NOT LIKE 'tests/%'
-          AND path NOT LIKE '%/tests/%'
-          AND path NOT LIKE '%_test.py'
-          AND name NOT LIKE 'test_%'
           AND NOT (name LIKE '__%__' AND kind = 'method')
         """
         rows = self.conn.execute(query).fetchall()
-        prod_nodes = [self._row_to_node(r) for r in rows]
+        prod_nodes = [n for n in (self._row_to_node(r) for r in rows) if not self._is_test_node(n)]
 
         gaps: list[TestGap] = []
         for n in prod_nodes:

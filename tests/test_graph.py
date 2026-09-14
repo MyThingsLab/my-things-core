@@ -583,3 +583,43 @@ def test_excludes_match_below_root_not_absolute_path():
         PythonAstExtractor(repo_root=outer).index_repo(graph)
 
         assert graph.get_node("symbol:app.handler") is not None
+
+
+def test_traversal_works_while_iterating_a_cursor():
+    # `for row in conn.execute(...): graph.blast_radius(...)` is the obvious way
+    # to drive this API; refreshing the resolution index must not need a commit
+    # that an open read cursor on the same connection would block.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "m.py").write_text(
+            "def leaf():\n    return 1\n\ndef top():\n    return leaf()\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        seen = 0
+        for row in graph.conn.execute("SELECT id FROM nodes WHERE kind = 'function'"):
+            graph.blast_radius(row[0])
+            seen += 1
+        assert seen == 2
+
+
+def test_production_file_is_not_excluded_by_like_wildcard():
+    # `_` is a single-character LIKE wildcard, so an unescaped '%_test.py'
+    # also swallows latest.py, contest.py and pytest.py.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "latest.py").write_text(
+            "def newest():\n    return 1\n",
+            encoding="utf-8",
+        )
+        (root / "caller.py").write_text(
+            "from latest import newest\n\ndef go():\n    return newest()\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        gap_paths = {g.symbol.path for g in graph.find_test_gaps()}
+        assert "latest.py" in gap_paths
