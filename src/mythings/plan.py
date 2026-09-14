@@ -13,6 +13,7 @@ _STATUSES = ("todo", "in_progress", "done")
 # id column, matching how the source system (a real product repo's own plan
 # tables) writes them. Titles must be unique within one plan file.
 _ROW = re.compile(r"^\|(.+)\|\s*$")
+_MILESTONE_HEADER = re.compile(r"^#?\s*(?:Goal|Milestone):\s*(.+)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -24,7 +25,19 @@ class PlanTask:
     status: str = "todo"
 
 
-def parse(text: str) -> list[PlanTask]:
+@dataclass(frozen=True)
+class Plan:
+    tasks: tuple[PlanTask, ...] = ()
+    milestone: str | None = None
+
+
+def parse_plan(text: str) -> Plan:
+    milestone: str | None = None
+    for line in text.splitlines():
+        if m := _MILESTONE_HEADER.match(line.strip()):
+            milestone = m.group(1).strip()
+            break
+
     rows = [m.group(1) for line in text.splitlines() if (m := _ROW.match(line))]
     tasks = []
     for row in rows[2:]:  # skip the header row and the "|---|...|" separator row
@@ -40,12 +53,26 @@ def parse(text: str) -> list[PlanTask]:
         tasks.append(
             PlanTask(title=title, owner=owner, depends_on=depends_on, issue=issue, status=status)
         )
-    return tasks
+    return Plan(tasks=tuple(tasks), milestone=milestone)
 
 
-def render(tasks: list[PlanTask]) -> str:
-    lines = ["| Task | Owner | Depends on | Issue | Status |", "|---|---|---|---|---|"]
-    for t in tasks:
+def parse(text: str) -> list[PlanTask]:
+    return list(parse_plan(text).tasks)
+
+
+def render(tasks: list[PlanTask] | Plan, *, milestone: str | None = None) -> str:
+    if isinstance(tasks, Plan):
+        milestone = tasks.milestone if milestone is None else milestone
+        task_list = list(tasks.tasks)
+    else:
+        task_list = tasks
+
+    lines = []
+    if milestone:
+        lines.append(f"# Goal: {milestone}\n")
+
+    lines.extend(["| Task | Owner | Depends on | Issue | Status |", "|---|---|---|---|---|"])
+    for t in task_list:
         deps = ", ".join(t.depends_on)
         issue = f"#{t.issue}" if t.issue is not None else ""
         lines.append(f"| {t.title} | {t.owner} | {deps} | {issue} | {t.status} |")
@@ -56,19 +83,26 @@ def read_plan(path: str | Path) -> list[PlanTask]:
     return parse(Path(path).read_text(encoding="utf-8"))
 
 
-def write_plan(path: str | Path, tasks: list[PlanTask]) -> None:
+def read_plan_object(path: str | Path) -> Plan:
+    return parse_plan(Path(path).read_text(encoding="utf-8"))
+
+
+def write_plan(
+    path: str | Path, tasks: list[PlanTask] | Plan, *, milestone: str | None = None
+) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(render(tasks), encoding="utf-8")
+    p.write_text(render(tasks, milestone=milestone), encoding="utf-8")
 
 
 _MISSING = PlanTask(title="", owner="", status="todo")
 
 
-def ready(tasks: list[PlanTask]) -> list[PlanTask]:
-    by_title = {t.title: t for t in tasks}
+def ready(tasks: list[PlanTask] | Plan) -> list[PlanTask]:
+    task_list = list(tasks.tasks) if isinstance(tasks, Plan) else tasks
+    by_title = {t.title: t for t in task_list}
     out = []
-    for t in tasks:
+    for t in task_list:
         if t.status == "done":
             continue
         # A dependency title with no matching task (typo/dangling edge) is
@@ -78,20 +112,35 @@ def ready(tasks: list[PlanTask]) -> list[PlanTask]:
     return out
 
 
-def reconcile(
-    tasks: list[PlanTask], *, repo: str, runner: Runner = _gh
-) -> tuple[list[PlanTask], bool]:
+def reconcile_plan(
+    plan: Plan,
+    *,
+    repo: str,
+    runner: Runner = _gh,
+) -> tuple[Plan, bool, tuple[int, ...]]:
+    milestone_drift: list[int] = []
     changed = False
     out = []
-    for t in tasks:
-        if t.issue is None or t.status == "done":
+    for t in plan.tasks:
+        if t.issue is None:
             out.append(t)
             continue
+
+        if plan.milestone is not None:
+            issue_m = _issue_milestone(repo, t.issue, runner)
+            if issue_m != plan.milestone:
+                milestone_drift.append(t.issue)
+
+        if t.status == "done":
+            out.append(t)
+            continue
+
         new_status = t.status
         if _issue_state(repo, t.issue, runner) == "CLOSED":
             new_status = "done"
         elif _open_pr_references(repo, t.issue, runner):
             new_status = "in_progress"
+
         if new_status != t.status:
             changed = True
             out.append(
@@ -105,12 +154,36 @@ def reconcile(
             )
         else:
             out.append(t)
-    return out, changed
+
+    new_plan = Plan(tasks=tuple(out), milestone=plan.milestone)
+    return new_plan, changed, tuple(milestone_drift)
+
+
+def reconcile(
+    tasks: list[PlanTask] | Plan,
+    *,
+    repo: str,
+    runner: Runner = _gh,
+    milestone: str | None = None,
+) -> tuple[list[PlanTask], bool]:
+    if isinstance(tasks, Plan):
+        plan = tasks if milestone is None else Plan(tasks=tasks.tasks, milestone=milestone)
+    else:
+        plan = Plan(tasks=tuple(tasks), milestone=milestone)
+
+    new_plan, changed, _ = reconcile_plan(plan, repo=repo, runner=runner)
+    return list(new_plan.tasks), changed
 
 
 def _issue_state(repo: str, number: int, runner: Runner) -> str:
     argv = ["issue", "view", str(number), "--repo", repo, "--json", "state", "-q", ".state"]
     return runner(argv).strip()
+
+
+def _issue_milestone(repo: str, number: int, runner: Runner) -> str | None:
+    argv = ["issue", "view", str(number), "--repo", repo, "--json", "milestone", "-q", ".milestone.title"]
+    raw = runner(argv).strip()
+    return raw if raw and raw != "null" else None
 
 
 def _open_pr_references(repo: str, number: int, runner: Runner) -> bool:

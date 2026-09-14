@@ -1,1 +1,2 @@
 {"data":{"session":"2026-09-14"},"detail":"Promote FakeTransport and FakeCliRunner abstractions into mythings.testing","kind":"build","outcome":"success","tool":"claude-code","ts":"2026-09-13T22:22:37Z"}
+{"data":{"session":"2026-09-14"},"detail":"feat(plan): link mythings.plan to goal milestone and detect milestone drift","kind":"feature","outcome":"success","tool":"claude-code","ts":"2026-09-14T15:05:08Z"}
