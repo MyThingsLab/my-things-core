@@ -64,6 +64,21 @@ def test_check_version_changelog_mismatch(tmp_path: Path) -> None:
     assert "1.1.0" in errors[0]
 
 
+def test_check_version_changelog_duplicate_heading(tmp_path: Path) -> None:
+    repo = tmp_path / "my-example"
+    repo.mkdir()
+    (repo / "pyproject.toml").write_text('[project]\nversion = "1.2.0"\n', encoding="utf-8")
+    (repo / "CHANGELOG.md").write_text(
+        "## [1.2.0] - 2026-07-21\n- second\n\n## [1.2.0] - 2026-07-20\n- first\n",
+        encoding="utf-8",
+    )
+
+    errors = check_version_changelog(repo)
+    assert len(errors) == 1
+    assert "more than one" in errors[0]
+    assert "[1.2.0]" in errors[0]
+
+
 def test_check_version_changelog_missing_pyproject(tmp_path: Path) -> None:
     repo = tmp_path / "my-example"
     repo.mkdir()
