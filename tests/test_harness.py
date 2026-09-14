@@ -38,6 +38,22 @@ def test_revendor_rewrites_stale_and_skips_fresh(tmp_path: Path) -> None:
     assert not (tmp_path / "not-a-tool" / "HARNESS.md").exists()
 
 
+def test_revendor_sweeps_service_harness_when_filename_given(tmp_path: Path) -> None:
+    (tmp_path / "my-service").mkdir()
+    (tmp_path / "my-service" / "SERVICE_HARNESS.md").write_text("old rules", encoding="utf-8")
+    (tmp_path / "my-tool").mkdir()
+    (tmp_path / "my-tool" / "HARNESS.md").write_text("old rules", encoding="utf-8")
+
+    stale, fresh = revendor(tmp_path, filename="SERVICE_HARNESS.md")
+    assert stale == ["my-service"]
+    assert fresh == []
+    assert (
+        tmp_path / "my-service" / "SERVICE_HARNESS.md"
+    ).read_text(encoding="utf-8") == service_harness_text()
+    # A repo only vendoring the tool harness is untouched by a service sweep.
+    assert (tmp_path / "my-tool" / "HARNESS.md").read_text(encoding="utf-8") == "old rules"
+
+
 def test_revendor_check_reports_without_writing(tmp_path: Path) -> None:
     (tmp_path / "my-stale").mkdir()
     (tmp_path / "my-stale" / "HARNESS.md").write_text("old rules", encoding="utf-8")
@@ -130,6 +146,15 @@ def test_an_open_pr_that_does_not_sweep_leaves_the_repo_stale() -> None:
     assert (drift.stale, drift.in_flight) == (["my-stale"], [])
 
 
+def test_remote_stale_checks_service_harness_when_filename_given() -> None:
+    runner = _fake_runner(
+        [{"name": "my-service", "isArchived": False}],
+        {"my-service": service_harness_text()},
+    )
+    drift = remote_stale("o", runner=runner, filename="SERVICE_HARNESS.md")
+    assert (drift.stale, drift.in_flight, drift.current) == ([], [], ["my-service"])
+
+
 def test_workspace_check_cannot_stand_in_for_the_remote_check(tmp_path: Path) -> None:
     # The reason --remote-check exists: core's CI checks out core alone, so a
     # workspace check there globs nothing and passes no matter how stale the
@@ -140,3 +165,14 @@ def test_workspace_check_cannot_stand_in_for_the_remote_check(tmp_path: Path) ->
 def test_main_requires_a_workspace_or_an_org() -> None:
     with pytest.raises(SystemExit):
         main([])
+
+
+def test_main_sweeps_service_harness_when_filename_flag_given(tmp_path: Path) -> None:
+    (tmp_path / "my-service").mkdir()
+    (tmp_path / "my-service" / "SERVICE_HARNESS.md").write_text("old rules", encoding="utf-8")
+
+    assert main([str(tmp_path), "--check", "--filename", "SERVICE_HARNESS.md"]) == 1
+    assert main([str(tmp_path), "--filename", "SERVICE_HARNESS.md"]) == 0
+    assert (
+        tmp_path / "my-service" / "SERVICE_HARNESS.md"
+    ).read_text(encoding="utf-8") == service_harness_text()

@@ -289,7 +289,9 @@ lone clone — hence each tool **vendors** `HARNESS.md` rather than importing it
 with a drift-check test failing CI if the copy goes stale. After editing the
 canonical `harness.md`, sweep every sibling checkout in one command instead of
 hand-copying: `python -m mythings._harness <workspace-root>` (add `--check` to
-just report drift, exit 1 if any copy is stale).
+just report drift, exit 1 if any copy is stale). A service vendors
+`SERVICE_HARNESS.md` instead — the same command sweeps that copy with
+`--filename SERVICE_HARNESS.md`.
 Similarly, `python -m mythings._agents <workspace-root>` enforces canonical `AGENTS.md`
 and symlinks across the fleet.
 
@@ -304,6 +306,19 @@ and symlinks across the fleet.
    scaffold fails CI while any is left unfilled after the rename).
 3. `pip install -e ../my-things-core -e ".[dev]" && pre-commit install`.
 4. Red → green → refactor locally; open a PR; let CI gate it.
+
+## Starting a new service
+
+Same shape, different archetype and canonical file: a service vendors
+`SERVICE_HARNESS.md` (from [`service-harness.md`](../src/mythings/service-harness.md))
+instead of `HARNESS.md`, per the "per-service seams" section there. The
+scaffold this copies from is `my-service-template`, parallel to `my-template`
+above — as of this writing that scaffold does not exist yet, so a new service
+is built by copying `my-template` and manually swapping its vendored
+`HARNESS.md` and drift-check test for `SERVICE_HARNESS.md` until the
+dedicated scaffold lands. `my-server`, `my-telegram-bot`, and `my-dashboard`
+(its serving mode) are the three existing services; each still vendors the
+tool `HARNESS.md` as of this writing and is due the same swap.
 
 ## `docs/tools/<name>.md` goes historical at first ship
 

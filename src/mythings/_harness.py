@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
@@ -22,22 +23,33 @@ def service_harness_text() -> str:
     # my-dashboard's serving mode) -- a distinct canonical harness, not a
     # variant of harness_text(), since its load-bearing invariants genuinely
     # differ (not issue-triggered, may not open a PR at all). No repo vendors
-    # this yet; revendor()'s sweep stays scoped to HARNESS.md until a
-    # my-service-template exists to vendor a SERVICE_HARNESS.md copy of it.
+    # this yet (my-service-template doesn't exist), but revendor() and
+    # remote_stale() already sweep SERVICE_HARNESS.md alongside HARNESS.md so
+    # the gate is ready the moment a service starts vendoring it.
     return files("mythings").joinpath("service-harness.md").read_text(encoding="utf-8")
 
 
-# Editing harness.md used to mean hand-copying it into every sibling repo;
-# `python -m mythings._harness <workspace>` does that sweep in one command.
-# Only repos that already vendor a HARNESS.md are touched — it never creates
-# one, so non-tool checkouts in the workspace are left alone.
+# filename -> the canonical text a vendored copy of it must match.
+_CANONICAL_BY_FILENAME: dict[str, Callable[[], str]] = {
+    "HARNESS.md": harness_text,
+    "SERVICE_HARNESS.md": service_harness_text,
+}
 
 
-def revendor(workspace: Path, *, check: bool = False) -> tuple[list[str], list[str]]:
-    canonical = harness_text()
+# Editing harness.md (or service-harness.md) used to mean hand-copying it into
+# every sibling repo; `python -m mythings._harness <workspace>` does that
+# sweep in one command. Only repos that already vendor the given filename are
+# touched — it never creates one, so checkouts that don't vendor it are left
+# alone.
+
+
+def revendor(
+    workspace: Path, *, check: bool = False, filename: str = "HARNESS.md"
+) -> tuple[list[str], list[str]]:
+    canonical = _CANONICAL_BY_FILENAME[filename]()
     stale: list[str] = []
     fresh: list[str] = []
-    for target in sorted(workspace.glob("*/HARNESS.md")):
+    for target in sorted(workspace.glob(f"*/{filename}")):
         if target.read_text(encoding="utf-8") == canonical:
             fresh.append(target.parent.name)
         else:
@@ -76,14 +88,18 @@ class VendorDrift:
     current: list[str]
 
 
-def _vendored_at(runner: Runner, org: str, name: str, ref: str | None = None) -> str:
-    path = f"repos/{org}/{name}/contents/HARNESS.md"
+def _vendored_at(
+    runner: Runner, org: str, name: str, ref: str | None = None, *, filename: str = "HARNESS.md"
+) -> str:
+    path = f"repos/{org}/{name}/contents/{filename}"
     if ref is not None:
         path += f"?ref={ref}"
     return runner(["api", path, "-H", "Accept: application/vnd.github.raw"])
 
 
-def _sweep_in_flight(runner: Runner, org: str, name: str, canonical: str) -> bool:
+def _sweep_in_flight(
+    runner: Runner, org: str, name: str, canonical: str, *, filename: str = "HARNESS.md"
+) -> bool:
     try:
         raw = runner(
             ["pr", "list", "--repo", f"{org}/{name}", "--state", "open",
@@ -96,15 +112,15 @@ def _sweep_in_flight(runner: Runner, org: str, name: str, canonical: str) -> boo
         if not sha:
             continue
         try:
-            if _vendored_at(runner, org, name, sha) == canonical:
+            if _vendored_at(runner, org, name, sha, filename=filename) == canonical:
                 return True
         except GitHubError:
             continue
     return False
 
 
-def remote_stale(org: str, *, runner: Runner = _gh) -> VendorDrift:
-    canonical = harness_text()
+def remote_stale(org: str, *, runner: Runner = _gh, filename: str = "HARNESS.md") -> VendorDrift:
+    canonical = _CANONICAL_BY_FILENAME[filename]()
     drift = VendorDrift(stale=[], in_flight=[], current=[])
     raw = runner(["repo", "list", org, "--json", "name,isArchived", "--limit", "300"])
     for entry in sorted(json.loads(raw), key=lambda e: str(e.get("name", ""))):
@@ -114,12 +130,12 @@ def remote_stale(org: str, *, runner: Runner = _gh) -> VendorDrift:
             continue
         name = str(entry["name"])
         try:
-            vendored = _vendored_at(runner, org, name)
+            vendored = _vendored_at(runner, org, name, filename=filename)
         except GitHubError:
-            continue  # doesn't vendor a HARNESS.md; not this gate's business
+            continue  # doesn't vendor this file; not this gate's business
         if vendored == canonical:
             drift.current.append(name)
-        elif _sweep_in_flight(runner, org, name, canonical):
+        elif _sweep_in_flight(runner, org, name, canonical, filename=filename):
             drift.in_flight.append(name)
         else:
             drift.stale.append(name)
@@ -146,16 +162,22 @@ def main(argv: list[str] | None = None) -> int:
         "--remote-check",
         metavar="ORG",
         help="check every non-archived repo in ORG on GitHub instead of a local "
-        "workspace; exit 1 if any vendored HARNESS.md is stale",
+        "workspace; exit 1 if any vendored copy is stale",
+    )
+    parser.add_argument(
+        "--filename",
+        choices=sorted(_CANONICAL_BY_FILENAME),
+        default="HARNESS.md",
+        help="which canonical file to sweep/check (default: HARNESS.md)",
     )
     args = parser.parse_args(argv)
 
     if args.remote_check:
-        drift = remote_stale(args.remote_check)
+        drift = remote_stale(args.remote_check, filename=args.filename)
         for name in drift.in_flight:
-            print(f"sweep in flight: {name}/HARNESS.md (open PR carries the new copy)")
+            print(f"sweep in flight: {name}/{args.filename} (open PR carries the new copy)")
         for name in drift.stale:
-            print(f"stale: {name}/HARNESS.md")
+            print(f"stale: {name}/{args.filename}")
         print(
             f"{len(drift.stale)} stale, {len(drift.in_flight)} in flight, "
             f"{len(drift.current)} already current"
@@ -165,10 +187,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.workspace is None:
         parser.error("give a workspace path, or --remote-check ORG")
 
-    stale, fresh = revendor(args.workspace, check=args.check)
+    stale, fresh = revendor(args.workspace, check=args.check, filename=args.filename)
     verb = "stale" if args.check else "re-vendored"
     for name in stale:
-        print(f"{verb}: {name}/HARNESS.md")
+        print(f"{verb}: {name}/{args.filename}")
     print(f"{len(stale)} {verb}, {len(fresh)} already current")
     return 1 if (args.check and stale) else 0
 
