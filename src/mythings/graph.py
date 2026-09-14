@@ -20,6 +20,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+# Bump whenever the extractor's edge format or the traversal rules change, so a
+# cache written by an older version is not silently reused. The fleet keys its
+# `.mythings/graph.sqlite` cache on the repo's commit SHA alone, so a repo whose
+# HEAD has not moved keeps serving edges the current traversal no longer
+# understands -- and the symptom is an Agent Context Pack that reports no
+# callers and no tests, which reads as a real answer.
+GRAPH_SCHEMA_VERSION = 2
+
 
 @dataclass(frozen=True)
 class Node:
@@ -107,6 +115,27 @@ class CodebaseGraph:
     def in_memory(cls) -> CodebaseGraph:
         return cls(":memory:")
 
+    @classmethod
+    def open_cached(cls, db_path: str | Path) -> CodebaseGraph | None:
+        """Open a persisted graph, or None if it is absent or written by another schema version."""
+        # Every consumer reaches for a cache and falls back to indexing when
+        # there isn't one. Deciding "is this cache usable" here means none of
+        # them has to re-derive the rule -- two of the three never checked
+        # anything beyond the file existing.
+        path = Path(db_path)
+        if not path.exists():
+            return None
+        probe = sqlite3.connect(str(path))
+        try:
+            version = probe.execute("PRAGMA user_version").fetchone()[0]
+        except sqlite3.DatabaseError:
+            return None
+        finally:
+            probe.close()
+        if version != GRAPH_SCHEMA_VERSION:
+            return None
+        return cls(path)
+
     def close(self) -> None:
         self.conn.close()
 
@@ -160,6 +189,8 @@ class CodebaseGraph:
                 HAVING COUNT(*) = 1;
                 """
             )
+            # PRAGMA takes no parameters, and the value is a module constant.
+            self.conn.execute(f"PRAGMA user_version = {GRAPH_SCHEMA_VERSION:d}")
 
     def _refresh_resolution_index(self) -> None:
         # `resolvable_names` is a view over a GROUP BY, so a traversal that
@@ -1505,12 +1536,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.cmd == "acp":
         repo_path = args.repo.resolve()
         db_path = args.db or (repo_path / ".mythings" / "graph.sqlite")
-        if not db_path.exists():
+        cached = CodebaseGraph.open_cached(db_path)
+        if cached is None:
             graph = CodebaseGraph.in_memory()
             PythonAstExtractor(repo_root=repo_path).index_repo(graph)
             MarkdownExtractor(repo_root=repo_path).index_docs(graph)
         else:
-            graph = CodebaseGraph(db_path)
+            graph = cached
         seed_id = args.symbol if args.symbol.startswith("symbol:") else f"symbol:{args.symbol}"
         if not graph.get_node(seed_id):
             matches = graph.find_symbols(args.symbol)
@@ -1527,8 +1559,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             graph = CodebaseGraph(repo_path)
         else:
             db_path = repo_path / ".mythings" / "graph.sqlite"
-            if db_path.exists():
-                graph = CodebaseGraph(db_path)
+            cached = CodebaseGraph.open_cached(db_path)
+            if cached is not None:
+                graph = cached
             else:
                 graph = CodebaseGraph.in_memory()
                 PythonAstExtractor(repo_root=repo_path).index_repo(graph)
