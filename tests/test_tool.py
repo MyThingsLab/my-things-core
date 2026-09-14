@@ -29,6 +29,21 @@ def test_build_engine_from_args_returns_expected_instances() -> None:
     assert isinstance(eng_gemini, GeminiCLIEngine)
 
 
+def test_build_engine_from_args_accepts_the_fleet_wide_flag_convention() -> None:
+    # Every real tool's CLI declares `--engine-model`/`--engine-effort`, which
+    # argparse lands in engine_model/engine_effort -- not the bare model/effort
+    # this function originally read, which no real caller ever set.
+    args = argparse.Namespace(engine="claude-cli", engine_model="claude-3-5-sonnet")
+    eng = build_engine_from_args(args)
+    assert isinstance(eng, ClaudeCLIEngine)
+    assert eng._model == "claude-3-5-sonnet"
+
+    # And several tools' `--engine` choices are ("noop", "claude") rather than
+    # ("noop", "claude-cli"); both must resolve to the same backend.
+    assert isinstance(build_engine_from_args(argparse.Namespace(engine="claude")), ClaudeCLIEngine)
+    assert isinstance(build_engine_from_args(argparse.Namespace(engine="gemini")), GeminiCLIEngine)
+
+
 def test_base_tool_runner_picks_issue() -> None:
     payload = json.dumps(
         [

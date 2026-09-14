@@ -520,15 +520,21 @@ class MeteredEngine:
         return result
 
 
+# Every real tool's `--engine-model`/`--engine-effort` flags land in
+# args.engine_model/args.engine_effort (argparse's dash-to-underscore dest),
+# not args.model/args.effort -- fall back to both so a tool built against
+# either convention gets a working engine instead of one that silently drops
+# its `--engine-model` override. Same reason engine_type accepts "claude"/
+# "gemini" alongside "claude-cli"/"gemini-cli": both spellings are live
+# across the fleet's `--engine` choices.
 def build_engine_from_args(args: Any) -> Engine:
-    """Build an Engine instance from CLI argparse arguments."""
     engine_type = getattr(args, "engine", "noop")
-    model = getattr(args, "model", None)
-    effort = getattr(args, "effort", None)
+    model = getattr(args, "model", None) or getattr(args, "engine_model", None)
+    effort = getattr(args, "effort", None) or getattr(args, "engine_effort", None)
     cwd = getattr(args, "cwd", None)
-    if engine_type == "claude-cli":
+    if engine_type in ("claude-cli", "claude"):
         return ClaudeCLIEngine(model=model, effort=effort, cwd=cwd)
-    if engine_type == "gemini-cli":
+    if engine_type in ("gemini-cli", "gemini"):
         return GeminiCLIEngine(model=model, effort=effort, cwd=cwd)
     return NoopEngine()
 
