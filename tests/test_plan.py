@@ -136,3 +136,38 @@ def test_reconcile_skips_tasks_with_no_issue_or_already_done() -> None:
 
     assert changed is False
     assert out == tasks
+
+
+def test_parse_plan_extracts_milestone_and_roundtrips() -> None:
+    from mythings.plan import parse_plan, render
+
+    text = "# Goal: goal/cad-foundation\n\n" + _TABLE
+    plan = parse_plan(text)
+
+    assert plan.milestone == "goal/cad-foundation"
+    assert len(plan.tasks) == 3
+    rendered = render(plan)
+    assert "# Goal: goal/cad-foundation" in rendered
+    assert parse_plan(rendered) == plan
+
+
+def test_reconcile_plan_detects_milestone_drift() -> None:
+    from mythings.plan import Plan, PlanTask, reconcile_plan
+
+    plan = Plan(
+        tasks=(PlanTask(title="task 1", owner="x", issue=42, status="todo"),),
+        milestone="goal/cad-foundation",
+    )
+    runner = FakeGh(
+        {
+            ("issue", "view"): json.dumps(
+                {"milestone": {"title": "different-milestone"}, "state": "OPEN"}
+            ),
+            ("pr", "list"): json.dumps([]),
+        }
+    )
+
+    new_plan, changed, drift = reconcile_plan(plan, repo="MyThingsLab/x", runner=runner)
+
+    assert drift == (42,)
+
