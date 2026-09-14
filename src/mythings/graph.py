@@ -870,6 +870,92 @@ def _is_dunder(name: str) -> bool:
     return name.startswith("__") and name.endswith("__") and len(name) > 4
 
 
+def _annotation_type_name(annotation: ast.expr | None) -> str | None:
+    # `ledger: Ledger | None = None` and `ledger: Optional[Ledger]` both declare a
+    # `Ledger`. Anything that is not one nameable class after the None is dropped
+    # -- `Callable[[Path, list[str]], None]`, a union of two real classes -- has
+    # no single answer, so it gets none.
+    if annotation is None:
+        return None
+    if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+        sides = [
+            _annotation_type_name(side)
+            for side in (annotation.left, annotation.right)
+            if not (isinstance(side, ast.Constant) and side.value is None)
+        ]
+        named = [s for s in sides if s]
+        return named[0] if len(named) == 1 else None
+    if isinstance(annotation, ast.Subscript):
+        base = annotation.value
+        if isinstance(base, ast.Name) and base.id == "Optional":
+            return _annotation_type_name(annotation.slice)
+        return None
+    if isinstance(annotation, ast.Name):
+        return annotation.id
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        # A forward reference, `ledger: "Ledger"`.
+        return annotation.value or None
+    return None
+
+
+def _attribute_types(cls: ast.ClassDef) -> dict[str, str]:
+    # `self._ledger.record(...)` is an attribute on an *instance attribute*, which
+    # no amount of `self.X()` resolution can reach -- and it is how every one of
+    # this SDK's seams is actually called. The declared type is the best static
+    # answer available, so read it off `__init__`: either the annotation on the
+    # attribute itself, or the annotation of the parameter it is assigned from.
+    types: dict[str, str] = {}
+    init = next(
+        (
+            item
+            for item in cls.body
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == "__init__"
+        ),
+        None,
+    )
+    if init is None:
+        return types
+
+    args = init.args
+    param_types = {
+        arg.arg: name
+        for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs)
+        if (name := _annotation_type_name(arg.annotation))
+    }
+
+    def target_attr(node: ast.expr) -> str | None:
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "self"
+        ):
+            return node.attr
+        return None
+
+    for stmt in ast.walk(init):
+        if isinstance(stmt, ast.AnnAssign):
+            attr = target_attr(stmt.target)
+            declared = _annotation_type_name(stmt.annotation)
+            if attr and declared:
+                types[attr] = declared
+        elif isinstance(stmt, ast.Assign):
+            value = stmt.value
+            # `self.github = github or GitHub(...)` still declares its type
+            # through the parameter it falls back from.
+            if isinstance(value, ast.BoolOp) and isinstance(value.op, ast.Or):
+                value = value.values[0]
+            if not isinstance(value, ast.Name):
+                continue
+            declared = param_types.get(value.id)
+            if not declared:
+                continue
+            for tgt in stmt.targets:
+                attr = target_attr(tgt)
+                if attr:
+                    types[attr] = declared
+    return types
+
+
 def _locally_bound_names(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
     # A parameter or local binding shadows the module scope, so `handler()` in
     # `def dispatch(handler)` is not a call to a module-level `handler`. This
@@ -1041,6 +1127,7 @@ class PythonAstExtractor:
                 scope_prefix: str,
                 lines: list[str],
                 class_methods: frozenset[str] = frozenset(),
+                attr_types: dict[str, str] | None = None,
             ) -> None:
                 self.parent_id = parent_id
                 self.scope_prefix = scope_prefix
@@ -1048,6 +1135,9 @@ class PythonAstExtractor:
                 # Method names of the class being visited, so `self.X()` can be
                 # resolved against it. Empty outside a class body.
                 self.class_methods = class_methods
+                # Declared type per instance attribute, so `self._ledger.record()`
+                # can be resolved against `Ledger`. Empty outside a class body.
+                self.attr_types = attr_types or {}
 
             def visit_ClassDef(self, node: ast.ClassDef) -> None:
                 class_fqn = f"{self.scope_prefix}.{node.name}"
@@ -1093,7 +1183,9 @@ class PythonAstExtractor:
                     for item in node.body
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
                 )
-                inner_visitor = CodeVisitor(class_id, class_fqn, self.lines, own_methods)
+                inner_visitor = CodeVisitor(
+                    class_id, class_fqn, self.lines, own_methods, _attribute_types(node)
+                )
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         inner_visitor.visit_FunctionDef(item, is_method=True)
@@ -1210,6 +1302,24 @@ class PythonAstExtractor:
                                 and base.id not in shadowed
                             ):
                                 resolved_target = f"symbol:{scope_aliases[base.id]}.{attr}"
+                            elif (
+                                isinstance(base, ast.Attribute)
+                                and isinstance(base.value, ast.Name)
+                                and base.value.id in ("self", "cls")
+                                and base.attr in self.attr_types
+                            ):
+                                # `self._ledger.record(...)`. The declared type of
+                                # the attribute is the best static answer there is,
+                                # and it is the one the caller programs against.
+                                declared = self.attr_types[base.attr]
+                                owner = scope_aliases.get(declared)
+                                if owner is None:
+                                    owner = (
+                                        f"{mod_name}.{declared}"
+                                        if declared in module_defs
+                                        else declared
+                                    )
+                                resolved_target = f"symbol:{owner}.{attr}"
                             else:
                                 resolved_target = f"symbol:{attr}"
 
