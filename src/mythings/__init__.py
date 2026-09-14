@@ -30,6 +30,8 @@ from mythings.github import (
     github_app_runner,
     github_app_token,
 )
+from mythings.goals import Blocker, GoalPart, GoalView, IssueRef
+from mythings.goals import collect as collect_goals
 from mythings.graph import (
     BlastRadius,
     CodebaseGraph,
@@ -57,6 +59,7 @@ __all__ = [
     "Action",
     "BaseToolRunner",
     "BlastRadius",
+    "Blocker",
     "CIStatus",
     "ClaudeCLIEngine",
     "CodebaseGraph",
@@ -71,7 +74,10 @@ __all__ = [
     "Getter",
     "GitHub",
     "GitHubError",
+    "GoalPart",
+    "GoalView",
     "Issue",
+    "IssueRef",
     "Ledger",
     "LedgerEntry",
     "MarkdownExtractor",
@@ -96,6 +102,7 @@ __all__ = [
     "Workspace",
     "app_installation_org",
     "build_engine_from_args",
+    "collect_goals",
     "configure_logging",
     "default_get",
     "default_robots_allowed",
