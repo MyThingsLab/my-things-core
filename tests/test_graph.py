@@ -758,3 +758,74 @@ def test_open_cached_rejects_a_graph_from_another_schema_version():
         garbage = root / "garbage.sqlite"
         garbage.write_bytes(b"this is not a database")
         assert CodebaseGraph.open_cached(garbage) is None
+
+
+def test_call_on_an_annotated_attribute_resolves_to_the_declared_type():
+    # `self._ledger.record(...)` is an attribute on an *instance attribute*, so
+    # no amount of `self.X()` resolution reaches it -- and it is how every one of
+    # this SDK's seams is actually called.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "ledger.py").write_text(
+            "class Ledger:\n    def record(self, msg):\n        return msg\n",
+            encoding="utf-8",
+        )
+        (root / "runner.py").write_text(
+            "from ledger import Ledger\n"
+            "\n"
+            "class Runner:\n"
+            "    def __init__(self, ledger: Ledger | None = None, note: str = ''):\n"
+            "        self._ledger = ledger\n"
+            "        self.note = note\n"
+            "    def go(self):\n"
+            "        self._ledger.record('x')\n"
+            "        return self.note.strip()\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        callers = {c.id for c in graph.blast_radius("symbol:ledger.Ledger.record").upstream_callers}
+        assert "symbol:runner.Runner.go" in callers
+
+        # `note` is a `str`, whose methods own no node here. Qualifying the
+        # target anyway is the point: a bare `symbol:strip` would be eligible for
+        # the unambiguous-name fallback and could be laundered onto an unrelated
+        # repo function that happens to be called `strip`.
+        targets = {
+            r[0]
+            for r in graph.conn.execute(
+                "SELECT target_id FROM edges WHERE source_id = 'symbol:runner.Runner.go'"
+            )
+        }
+        assert "symbol:str.strip" in targets
+        assert "symbol:strip" not in targets
+        assert graph.get_node("symbol:str.strip") is None
+
+
+def test_unannotated_attribute_does_not_invent_a_call_target():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "svc.py").write_text(
+            "class Other:\n    def send(self):\n        return 1\n"
+            "\n"
+            "class Svc:\n"
+            "    def __init__(self, dep):\n"
+            "        self.dep = dep\n"
+            "    def go(self):\n"
+            "        return self.dep.send()\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        targets = {
+            r[0]
+            for r in graph.conn.execute(
+                "SELECT target_id FROM edges WHERE source_id = 'symbol:svc.Svc.go'"
+            )
+        }
+        # Nothing declares what `dep` is, so it stays unresolved rather than
+        # guessing the only class that happens to define `send`.
+        assert "symbol:send" in targets
+        assert "symbol:svc.Other.send" not in targets
