@@ -965,10 +965,19 @@ class PythonAstExtractor:
 
         # Visitor for classes and functions
         class CodeVisitor(ast.NodeVisitor):
-            def __init__(self, parent_id: str, scope_prefix: str, lines: list[str]) -> None:
+            def __init__(
+                self,
+                parent_id: str,
+                scope_prefix: str,
+                lines: list[str],
+                class_methods: frozenset[str] = frozenset(),
+            ) -> None:
                 self.parent_id = parent_id
                 self.scope_prefix = scope_prefix
                 self.lines = lines
+                # Method names of the class being visited, so `self.X()` can be
+                # resolved against it. Empty outside a class body.
+                self.class_methods = class_methods
 
             def visit_ClassDef(self, node: ast.ClassDef) -> None:
                 class_fqn = f"{self.scope_prefix}.{node.name}"
@@ -1009,7 +1018,12 @@ class PythonAstExtractor:
                         )
                     )
 
-                inner_visitor = CodeVisitor(class_id, class_fqn, self.lines)
+                own_methods = frozenset(
+                    item.name
+                    for item in node.body
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                )
+                inner_visitor = CodeVisitor(class_id, class_fqn, self.lines, own_methods)
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         inner_visitor.visit_FunctionDef(item, is_method=True)
@@ -1108,6 +1122,19 @@ class PythonAstExtractor:
                             # unambiguous-name fallback to judge.
                             base = child.func.value
                             if (
+                                isinstance(base, ast.Name)
+                                and base.id in ("self", "cls")
+                                and attr in self.class_methods
+                            ):
+                                # The enclosing class is known statically here,
+                                # so this is exact -- no ambiguity guard needed.
+                                # Without it every `self.run()` degrades to the
+                                # bare name `run`, which 50 classes share, and
+                                # the uniqueness rule then drops the edge
+                                # entirely: the method reads as uncalled and
+                                # untested.
+                                resolved_target = f"symbol:{self.scope_prefix}.{attr}"
+                            elif (
                                 isinstance(base, ast.Name)
                                 and base.id in scope_aliases
                                 and base.id not in shadowed

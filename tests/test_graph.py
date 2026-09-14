@@ -623,3 +623,34 @@ def test_production_file_is_not_excluded_by_like_wildcard():
 
         gap_paths = {g.symbol.path for g in graph.find_test_gaps()}
         assert "latest.py" in gap_paths
+
+
+def test_self_method_call_resolves_against_enclosing_class():
+    # `self.X()` degrades to the bare name `X` without class-scope resolution,
+    # and 50 classes in this fleet define `run` -- so the uniqueness guard then
+    # drops the edge and the method reads as uncalled and untested.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "engines.py").write_text(
+            "class Alpha:\n"
+            "    def run(self):\n"
+            "        return self.helper()\n"
+            "    def helper(self):\n"
+            "        return 1\n"
+            "\n"
+            "class Beta:\n"
+            "    def run(self):\n"
+            "        return self.helper()\n"
+            "    def helper(self):\n"
+            "        return 2\n",
+            encoding="utf-8",
+        )
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        blast = graph.blast_radius("symbol:engines.Alpha.helper")
+        callers = {c.id for c in blast.upstream_callers}
+        assert "symbol:engines.Alpha.run" in callers
+        # ...and Beta's identically-named method is not laundered in.
+        assert "symbol:engines.Beta.run" not in callers
