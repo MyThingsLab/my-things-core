@@ -81,21 +81,22 @@ def test_parse_treats_unrecognized_facet_value_as_unknown() -> None:
     assert facets.unknown == ("prio:P9",)
 
 
-def test_validate_requires_lane_and_size() -> None:
+def test_validate_requires_lane_prio_and_size() -> None:
     result = validate(parse(["kind:bug"]))
     assert not result.dispatchable
     assert "missing lane" in result.reasons
+    assert "missing prio" in result.reasons
     assert "missing size" in result.reasons
 
 
 def test_validate_excludes_size_l() -> None:
-    result = validate(parse(["lane:core", "size:L"]))
+    result = validate(parse(["lane:core", "prio:P1", "size:L"]))
     assert not result.dispatchable
     assert any("size:L" in reason for reason in result.reasons)
 
 
 def test_validate_excludes_state_blocked() -> None:
-    result = validate(parse(["lane:core", "size:S", "state:blocked"]))
+    result = validate(parse(["lane:core", "prio:P1", "size:S", "state:blocked"]))
     assert not result.dispatchable
     assert any("blocked" in reason for reason in result.reasons)
 
