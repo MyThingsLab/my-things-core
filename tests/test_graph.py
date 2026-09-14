@@ -722,3 +722,39 @@ def test_public_symbols_are_not_reported_as_dead_internals():
         dead = {n.name for n in graph.find_unreferenced_symbols()}
         assert "PublicThing" not in dead
         assert "_hidden" in dead
+
+
+def test_open_cached_rejects_a_graph_from_another_schema_version():
+    # The fleet keys this cache on the repo's commit SHA alone, so a repo whose
+    # HEAD has not moved keeps serving edges an older extractor wrote. The
+    # traversal discards what it cannot parse and the Agent Context Pack then
+    # reports no callers and no tests, which reads as a real answer.
+    import sqlite3
+
+    from mythings.graph import GRAPH_SCHEMA_VERSION
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "m.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+        db = root / "graph.sqlite"
+
+        graph = CodebaseGraph(db)
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+        graph.close()
+
+        fresh = CodebaseGraph.open_cached(db)
+        assert fresh is not None
+        assert fresh.get_node("symbol:m.f") is not None
+        fresh.close()
+
+        stale = sqlite3.connect(str(db))
+        stale.execute(f"PRAGMA user_version = {GRAPH_SCHEMA_VERSION - 1}")
+        stale.commit()
+        stale.close()
+        assert CodebaseGraph.open_cached(db) is None
+
+        assert CodebaseGraph.open_cached(root / "absent.sqlite") is None
+
+        garbage = root / "garbage.sqlite"
+        garbage.write_bytes(b"this is not a database")
+        assert CodebaseGraph.open_cached(garbage) is None
