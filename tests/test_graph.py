@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 from mythings.graph import (
+    MAX_ACP_CALLERS,
     CodebaseGraph,
     Edge,
     MarkdownExtractor,
@@ -366,3 +367,259 @@ def test_cli_entrypoint(capsys):
         captured = capsys.readouterr()
         assert "clones" in captured.out
         assert "test_gaps" in captured.out
+
+
+def test_ambiguous_name_does_not_leak_into_blast_radius():
+    # Two unrelated modules each define `main`. A bare `main()` call in one
+    # module's tests must not appear in the other's blast radius.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "alpha.py").write_text(
+            "def helper():\n    return 1\n\ndef main():\n    return helper()\n",
+            encoding="utf-8",
+        )
+        (root / "beta.py").write_text(
+            "def main():\n    return 2\n",
+            encoding="utf-8",
+        )
+        tests_dir = root / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_beta.py").write_text(
+            "def test_beta_main():\n    main()\n",
+            encoding="utf-8",
+        )
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        blast = graph.blast_radius("symbol:alpha.helper")
+        caller_names = {c.name for c in blast.upstream_callers}
+        assert "main" in caller_names  # alpha.main really does call helper
+        assert "test_beta_main" not in caller_names
+        assert not blast.tests
+
+        # The seed's own name gets the same guard as every recursive hop:
+        # seeding the ambiguous `alpha.main` must not claim beta's test.
+        ambiguous = graph.blast_radius("symbol:alpha.main")
+        assert "test_beta_main" not in {c.name for c in ambiguous.upstream_callers}
+        assert not ambiguous.tests
+
+
+def test_function_local_import_resolves_calls():
+    # This codebase defers imports into function bodies; calls resolved through
+    # them must still produce edges.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "engine.py").write_text(
+            "def launch():\n    return 1\n",
+            encoding="utf-8",
+        )
+        (root / "caller.py").write_text(
+            "def go():\n    from engine import launch\n    return launch()\n",
+            encoding="utf-8",
+        )
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        blast = graph.blast_radius("symbol:engine.launch")
+        assert any(c.name == "go" for c in blast.upstream_callers)
+
+
+def test_module_attribute_call_resolves_to_definition():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "engine.py").write_text("def launch():\n    return 1\n", encoding="utf-8")
+        (root / "caller.py").write_text(
+            "import engine\n\ndef go():\n    return engine.launch()\n",
+            encoding="utf-8",
+        )
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        blast = graph.blast_radius("symbol:engine.launch")
+        assert any(c.name == "go" for c in blast.upstream_callers)
+
+
+def test_deferred_import_is_not_a_circular_import():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "a.py").write_text(
+            "import b\n\ndef use():\n    return b.thing()\n",
+            encoding="utf-8",
+        )
+        # b imports a only inside the function -- the standard cycle workaround.
+        (root / "b.py").write_text(
+            "def thing():\n    import a\n    return a\n",
+            encoding="utf-8",
+        )
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+        assert graph.find_circular_imports() == []
+
+        # A genuine import-time cycle is still reported.
+        (root / "b.py").write_text("import a\n\ndef thing():\n    return a\n", encoding="utf-8")
+        graph2 = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph2)
+        assert graph2.find_circular_imports()
+
+        # Both forms at once: edges are keyed (source, target, kind), so the
+        # deferred re-import must not overwrite the module-level edge and
+        # launder a real import-time cycle into a deferred one.
+        (root / "b.py").write_text(
+            "import a\n\ndef thing():\n    import a\n    return a\n",
+            encoding="utf-8",
+        )
+        graph3 = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph3)
+        assert graph3.find_circular_imports()
+
+
+def test_local_binding_shadows_module_level_definition():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        # `handler` is a parameter here, so `handler()` is not a call to the
+        # module-level `handler` that happens to share the name. The extractor
+        # must leave it unresolved rather than emit an exact-id edge, which
+        # would bypass every ambiguity guard downstream.
+        src = "def handler():\n    return 1\n\ndef dispatch(handler):\n    return handler()\n"
+        (root / "m.py").write_text(src, encoding="utf-8")
+
+        _, edges = PythonAstExtractor(repo_root=root).extract_file("m.py", content=src)
+        call_targets = {e.target_id for e in edges if e.kind == "calls"}
+        assert "symbol:handler" in call_targets
+        assert "symbol:m.handler" not in call_targets
+
+        # With a second `handler` in the repo the name is ambiguous, so the
+        # unresolved edge stays unresolved and the false caller never appears.
+        (root / "other.py").write_text("def handler():\n    return 2\n", encoding="utf-8")
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+        blast = graph.blast_radius("symbol:m.handler")
+        assert "dispatch" not in {c.name for c in blast.upstream_callers}
+
+
+def test_context_pack_reports_callers_and_truncates():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        callers = "\n".join(
+            f"def caller_{i}():\n    return hub()\n" for i in range(MAX_ACP_CALLERS + 5)
+        )
+        (root / "hub.py").write_text(f"def hub():\n    return 0\n\n{callers}", encoding="utf-8")
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        acp = render_context_pack(graph, "symbol:hub.hub", repo_root=root)
+        assert "Impact Zone (Callers" in acp
+        assert "caller_0" in acp
+        assert "more caller(s), omitted" in acp
+
+
+def test_test_gap_not_laundered_by_same_named_function():
+    # `run` exists twice; only one is tested. The untested one must still be
+    # reported as a gap.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "tested_mod.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+        (root / "untested_mod.py").write_text(
+            "def run():\n    return 2\n\ndef consumer():\n    return run()\n",
+            encoding="utf-8",
+        )
+        tests_dir = root / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_tested.py").write_text(
+            "from tested_mod import run\n\ndef test_run():\n    assert run() == 1\n",
+            encoding="utf-8",
+        )
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        gap_ids = {g.symbol.id for g in graph.find_test_gaps()}
+        assert "symbol:untested_mod.run" in gap_ids
+
+
+def test_nested_checkout_is_not_indexed():
+    # This fleet nests a git worktree per sibling repo inside a checkout.
+    # Indexing those copies duplicates every symbol, which manufactures clone
+    # groups and makes every name ambiguous.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / ".git").mkdir()
+        (root / "app.py").write_text("def handler():\n    return 1\n", encoding="utf-8")
+
+        nested = root / ".claude" / "worktrees" / "wt1"
+        nested.mkdir(parents=True)
+        (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        (nested / "app.py").write_text("def handler():\n    return 1\n", encoding="utf-8")
+
+        # A nested checkout not under an excluded directory name is still skipped.
+        vendored = root / "vendor" / "clone"
+        vendored.mkdir(parents=True)
+        (vendored / ".git").mkdir()
+        (vendored / "app.py").write_text("def handler():\n    return 1\n", encoding="utf-8")
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        paths = {n.path for n in graph.get_nodes_by_kind("function")}
+        assert paths == {"app.py"}
+        assert graph.find_structural_clones(min_lines=1) == []
+
+
+def test_excludes_match_below_root_not_absolute_path():
+    # A worker worktree lives under `.claude/worktrees/<name>/`, so `.claude`
+    # appears in its absolute path. Matching excludes against the absolute path
+    # would index zero files and silently produce an empty graph.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outer = Path(tmpdir) / ".claude" / "worktrees" / "wt"
+        outer.mkdir(parents=True)
+        (outer / "app.py").write_text("def handler():\n    return 1\n", encoding="utf-8")
+
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=outer).index_repo(graph)
+
+        assert graph.get_node("symbol:app.handler") is not None
+
+
+def test_traversal_works_while_iterating_a_cursor():
+    # `for row in conn.execute(...): graph.blast_radius(...)` is the obvious way
+    # to drive this API; refreshing the resolution index must not need a commit
+    # that an open read cursor on the same connection would block.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "m.py").write_text(
+            "def leaf():\n    return 1\n\ndef top():\n    return leaf()\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        seen = 0
+        for row in graph.conn.execute("SELECT id FROM nodes WHERE kind = 'function'"):
+            graph.blast_radius(row[0])
+            seen += 1
+        assert seen == 2
+
+
+def test_production_file_is_not_excluded_by_like_wildcard():
+    # `_` is a single-character LIKE wildcard, so an unescaped '%_test.py'
+    # also swallows latest.py, contest.py and pytest.py.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "latest.py").write_text(
+            "def newest():\n    return 1\n",
+            encoding="utf-8",
+        )
+        (root / "caller.py").write_text(
+            "from latest import newest\n\ndef go():\n    return newest()\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        gap_paths = {g.symbol.path for g in graph.find_test_gaps()}
+        assert "latest.py" in gap_paths

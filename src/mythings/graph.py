@@ -141,8 +141,56 @@ class CodebaseGraph:
                 CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id);
                 CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id);
                 CREATE INDEX IF NOT EXISTS idx_edges_kind ON edges(kind);
+
+                -- The AST extractor cannot resolve a bare `foo()` call to a
+                -- definition, so it emits the unresolved target `symbol:foo`.
+                -- Traversals then "resolve" those by name -- which is only
+                -- sound when exactly one definition owns the name. With 19
+                -- functions called `main`, a bare `symbol:main` target links
+                -- every one of them to every caller of any other, so a blast
+                -- radius leaks across unrelated modules. This view is the
+                -- single place that decides a name is unambiguous enough to
+                -- traverse; ambiguous names stay unresolved, which is the
+                -- honest answer.
+                CREATE VIEW IF NOT EXISTS resolvable_names AS
+                SELECT name, MIN(id) AS node_id
+                FROM nodes
+                WHERE kind IN ('function', 'method', 'class')
+                GROUP BY name
+                HAVING COUNT(*) = 1;
                 """
             )
+
+    def _refresh_resolution_index(self) -> None:
+        # `resolvable_names` is a view over a GROUP BY, so a traversal that
+        # correlates against it on `node_id` (an aggregate output, not the
+        # grouping key) makes SQLite re-aggregate the whole nodes table once per
+        # row -- quadratic, and measurably ~450x slower on the recursive caller
+        # walk. Materialise the same answer once per traversal into an indexed
+        # temp table so each lookup is an index seek.
+        #
+        # Built with plain execute() rather than executescript(): the latter
+        # issues an implicit COMMIT, which fails with "database table is
+        # locked" whenever the caller is iterating a cursor on this same
+        # connection -- `for row in conn.execute(...): graph.blast_radius(...)`
+        # is the obvious way to use this API, so it must not crash. For the
+        # same reason the table is emptied and refilled rather than dropped.
+        self.conn.execute(
+            """
+            CREATE TEMP TABLE IF NOT EXISTS resolved_symbol
+            (node_id TEXT PRIMARY KEY, sym TEXT)
+            """
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS temp.idx_resolved_sym ON resolved_symbol(sym)"
+        )
+        self.conn.execute("DELETE FROM resolved_symbol")
+        self.conn.execute(
+            """
+            INSERT INTO resolved_symbol (node_id, sym)
+            SELECT node_id, 'symbol:' || name FROM resolvable_names
+            """
+        )
 
     def add_node(self, node: Node) -> None:
         with self.conn:
@@ -355,10 +403,24 @@ class CodebaseGraph:
 
     def blast_radius(self, seed_id: str) -> BlastRadius:
         """Compute the deterministic blast radius for an edit to seed_id."""
+        self._refresh_resolution_index()
         focus = self.get_node(seed_id)
-        short_seed = f"symbol:{focus.name}" if focus else seed_id
+
+        # The seed itself gets the same ambiguity guard as every recursive hop:
+        # widening the search to `symbol:NAME` is only sound when NAME has one
+        # definition and that definition is the seed. Otherwise the short seed
+        # collapses to the exact id and the unresolved callers stay unclaimed.
+        short_seed = seed_id
+        if focus is not None:
+            row = self.conn.execute(
+                "SELECT sym FROM resolved_symbol WHERE node_id = ?", (focus.id,)
+            ).fetchone()
+            if row:
+                short_seed = row[0]
 
         # 1. Upstream callers (reverse calls transitive closure up to 3 hops)
+        # The recursive step may only follow an unresolved `symbol:NAME` target
+        # when that name has exactly one definition (see resolvable_names).
         caller_query = """
         WITH RECURSIVE upstream(id, depth) AS (
             SELECT source_id, 1 FROM edges
@@ -368,13 +430,14 @@ class CodebaseGraph:
             FROM edges e
             JOIN upstream u ON (
                 e.target_id = u.id
-                OR (e.target_id LIKE 'symbol:%'
-                    AND SUBSTR(e.target_id, 8) = (SELECT name FROM nodes WHERE id = u.id))
+                OR e.target_id = (SELECT rs.sym FROM resolved_symbol rs
+                                  WHERE rs.node_id = u.id)
             )
             WHERE e.kind = 'calls' AND u.depth < 3
         )
         SELECT DISTINCT n.* FROM nodes n
         JOIN upstream u ON n.id = u.id
+        ORDER BY n.path, n.start_line, n.id
         """
         callers = [
             self._row_to_node(r)
@@ -386,9 +449,11 @@ class CodebaseGraph:
         SELECT DISTINCT n.* FROM nodes n
         JOIN edges e ON (
             n.id = e.target_id
-            OR (e.target_id LIKE 'symbol:%' AND n.name = SUBSTR(e.target_id, 8))
+            OR e.target_id = (SELECT rs.sym FROM resolved_symbol rs
+                              WHERE rs.node_id = n.id)
         )
         WHERE e.source_id = ? AND e.kind = 'calls'
+        ORDER BY n.path, n.start_line, n.id
         """
         callees = [
             self._row_to_node(r) for r in self.conn.execute(callee_query, (seed_id,)).fetchall()
@@ -399,16 +464,12 @@ class CodebaseGraph:
         SELECT DISTINCT n.* FROM nodes n
         JOIN edges e ON n.id = e.target_id
         WHERE e.source_id = ? AND e.kind = 'references_type'
+        ORDER BY n.path, n.start_line, n.id
         """
         types = [self._row_to_node(r) for r in self.conn.execute(type_query, (seed_id,)).fetchall()]
 
-        # 4. Tests covering the symbol
-        # Tests are callers located in paths matching test* or tests/*
-        tests = [
-            c
-            for c in callers
-            if "test" in c.path.lower() or c.name.startswith("test_") or "tests/" in c.path
-        ]
+        # 4. Tests covering the symbol -- callers that are themselves tests.
+        tests = [c for c in callers if self._is_test_node(c)]
 
         # 5. Invariants and ADRs governing this node or its module
         # Find doc nodes connected via governs, satisfies, or documents
@@ -434,6 +495,45 @@ class CodebaseGraph:
             tests=tests,
             invariants=invariants,
             docs=docs,
+        )
+
+    def _callers_of(self, node: Node) -> list[Node]:
+        # Exact-id callers, plus callers of the unresolved `symbol:NAME` target
+        # but only when NAME is unambiguous. Without that guard a single tested
+        # `run` launders coverage onto all 22 functions sharing the name.
+        callers = self.neighbors(node.id, direction="in", edge_kinds=["calls"])
+        seen = {c.id for c in callers}
+        resolvable = self.conn.execute(
+            "SELECT sym FROM resolved_symbol WHERE node_id = ?", (node.id,)
+        ).fetchone()
+        if resolvable:
+            rows = self.conn.execute(
+                """
+                SELECT n.* FROM nodes n
+                JOIN edges e ON n.id = e.source_id
+                WHERE e.target_id = ? AND e.kind = 'calls'
+                """,
+                (resolvable[0],),
+            ).fetchall()
+            for r in rows:
+                c_node = self._row_to_node(r)
+                if c_node.id not in seen:
+                    seen.add(c_node.id)
+                    callers.append(c_node)
+        callers.sort(key=lambda c: (c.path, c.start_line or 0, c.id))
+        return callers
+
+    @staticmethod
+    def _is_test_node(node: Node) -> bool:
+        # `test_*.py` and `*_test.py` are both pytest defaults; missing the
+        # second one would report a covered symbol as a test gap.
+        filename = Path(node.path).name
+        return (
+            node.name.startswith("test_")
+            or node.path.startswith("tests/")
+            or "/tests/" in node.path
+            or filename.startswith("test_")
+            or filename.endswith("_test.py")
         )
 
     def find_structural_clones(self, min_lines: int = 3) -> list[CloneGroup]:
@@ -475,48 +575,33 @@ class CodebaseGraph:
 
     def find_test_gaps(self, min_callers: int = 1) -> list[TestGap]:
         """Identify production symbols with dependent callers but zero direct tests."""
+        self._refresh_resolution_index()
+        # What counts as a test is decided in exactly one place, `_is_test_node`.
+        # Spelling it again in SQL drifts: `_` is a single-character LIKE
+        # wildcard, so a `NOT LIKE '%_test.py'` meant to skip `parser_test.py`
+        # also silently swallowed `latest.py` and `pytest.py`.
         query = """
         SELECT * FROM nodes
         WHERE kind IN ('function', 'method')
-          AND path NOT LIKE 'tests/%'
-          AND path NOT LIKE '%/tests/%'
-          AND name NOT LIKE 'test_%'
           AND NOT (name LIKE '__%__' AND kind = 'method')
         """
         rows = self.conn.execute(query).fetchall()
-        prod_nodes = [self._row_to_node(r) for r in rows]
+        prod_nodes = [n for n in (self._row_to_node(r) for r in rows) if not self._is_test_node(n)]
 
         gaps: list[TestGap] = []
         for n in prod_nodes:
-            callers = self.neighbors(n.id, direction="in", edge_kinds=["calls"])
-            short_callers = self.conn.execute(
-                """
-                SELECT n.* FROM nodes n
-                JOIN edges e ON n.id = e.source_id
-                WHERE e.target_id = ? AND e.kind = 'calls'
-                """,
-                (f"symbol:{n.name}",),
-            ).fetchall()
-            for r in short_callers:
-                c_node = self._row_to_node(r)
-                if c_node not in callers:
-                    callers.append(c_node)
-
+            callers = self._callers_of(n)
             if len(callers) < min_callers:
                 continue
-
-            has_test = any(
-                "test" in c.path.lower() or c.name.startswith("test_") or "tests/" in c.path
-                for c in callers
-            )
-            if not has_test:
+            if not any(self._is_test_node(c) for c in callers):
                 gaps.append(TestGap(symbol=n, caller_count=len(callers), callers=callers))
 
-        gaps.sort(key=lambda g: g.caller_count, reverse=True)
+        gaps.sort(key=lambda g: (-g.caller_count, g.symbol.path, g.symbol.id))
         return gaps
 
     def find_untested_invariants(self) -> list[UntestedInvariant]:
         """Find ADR and Invariant documentation nodes whose governed symbols lack test coverage."""
+        self._refresh_resolution_index()
         query = """
         SELECT * FROM nodes
         WHERE kind IN ('invariant', 'adr')
@@ -551,24 +636,7 @@ class CodebaseGraph:
 
             any_tested = False
             for s in governed:
-                callers = self.neighbors(s.id, direction="in", edge_kinds=["calls"])
-                short_callers = self.conn.execute(
-                    """
-                    SELECT n.* FROM nodes n
-                    JOIN edges e ON n.id = e.source_id
-                    WHERE e.target_id = ? AND e.kind = 'calls'
-                    """,
-                    (f"symbol:{s.name}",),
-                ).fetchall()
-                for r in short_callers:
-                    c_node = self._row_to_node(r)
-                    if c_node not in callers:
-                        callers.append(c_node)
-
-                if any(
-                    "test" in c.path.lower() or c.name.startswith("test_") or "tests/" in c.path
-                    for c in callers
-                ):
+                if any(self._is_test_node(c) for c in self._callers_of(s)):
                     any_tested = True
                     break
 
@@ -579,9 +647,13 @@ class CodebaseGraph:
 
     def find_circular_imports(self) -> list[list[str]]:
         """Detect circular module dependencies across imports edges."""
+        # A deferred (function-local) import does not run at import time, so it
+        # cannot form an import cycle -- reporting one would flag the very
+        # workaround that prevents it.
         query = """
         SELECT DISTINCT source_id, target_id FROM edges
         WHERE kind = 'imports' AND source_id LIKE 'module:%'
+          AND json_extract(metadata_json, '$.deferred') IS NULL
         """
         rows = self.conn.execute(query).fetchall()
         adj: dict[str, set[str]] = {}
@@ -695,6 +767,130 @@ def _compute_ast_shape_hash(fn_node: ast.FunctionDef | ast.AsyncFunctionDef) -> 
     return hashlib.sha256(dumped.encode("utf-8")).hexdigest()[:16]
 
 
+DEFAULT_EXCLUDES: tuple[str, ...] = (
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".git",
+    "build",
+    "dist",
+    ".claude",
+    ".mythings",
+    "node_modules",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    "site-packages",
+)
+
+
+def _iter_repo_files(root: Path, pattern: str, excludes: Sequence[str]) -> list[Path]:
+    # Sorted, so indexing order does not depend on filesystem readdir order --
+    # the graph is only reproducible across machines if this is.
+    nested_cache: dict[Path, bool] = {}
+
+    def in_nested_checkout(directory: Path) -> bool:
+        # A repo that has git worktrees nested inside it (this fleet nests one
+        # per sibling repo) otherwise gets every symbol indexed several times
+        # over, which manufactures clone groups and makes every name ambiguous.
+        if directory in nested_cache:
+            return nested_cache[directory]
+        result = directory != root and (
+            (directory / ".git").exists() or in_nested_checkout(directory.parent)
+        )
+        nested_cache[directory] = result
+        return result
+
+    found: list[Path] = []
+    for p in sorted(root.glob(pattern)):
+        if not p.is_file():
+            continue
+        # Match excludes against the path *below* the repo root. Matching the
+        # absolute path would exclude an entire checkout whenever some ancestor
+        # outside it happens to share a name -- a worker worktree living under
+        # `.claude/worktrees/` would index nothing at all.
+        try:
+            rel_parts = p.relative_to(root).parts
+        except ValueError:
+            continue
+        if any(ex in rel_parts for ex in excludes):
+            continue
+        if in_nested_checkout(p.parent):
+            continue
+        found.append(p)
+    return found
+
+
+def _locally_bound_names(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    # A parameter or local binding shadows the module scope, so `handler()` in
+    # `def dispatch(handler)` is not a call to a module-level `handler`. This
+    # over-approximates by walking nested scopes too, which only ever costs us a
+    # resolution -- the name falls back to the ambiguity-guarded `symbol:NAME`.
+    bound: set[str] = set()
+    args = fn.args
+    for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs):
+        bound.add(arg.arg)
+    if args.vararg:
+        bound.add(args.vararg.arg)
+    if args.kwarg:
+        bound.add(args.kwarg.arg)
+    for child in ast.walk(fn):
+        if child is fn:
+            continue
+        if isinstance(child, ast.Name) and isinstance(child.ctx, (ast.Store, ast.Del)):
+            bound.add(child.id)
+        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound.add(child.name)
+        elif isinstance(child, ast.ExceptHandler) and child.name:
+            bound.add(child.name)
+    return bound
+
+
+def _import_edges(
+    stmt: ast.Import | ast.ImportFrom, mod_id: str, deferred: bool
+) -> tuple[dict[str, str], list[Edge]]:
+    # `deferred` marks an import inside a function body. Those still tell us how
+    # to resolve calls, but they do not create an import-time module dependency
+    # -- they are usually written precisely to break one -- so cycle detection
+    # skips them.
+    aliases: dict[str, str] = {}
+    edges: list[Edge] = []
+    meta_extra = {"deferred": True} if deferred else {}
+
+    if isinstance(stmt, ast.Import):
+        for alias in stmt.names:
+            norm_alias = (
+                alias.name.removeprefix("src.") if alias.name.startswith("src.") else alias.name
+            )
+            aliases[alias.asname or alias.name] = norm_alias
+            edges.append(
+                Edge(
+                    source_id=mod_id,
+                    target_id=f"module:{norm_alias}",
+                    kind="imports",
+                    metadata={"alias": alias.asname, **meta_extra},
+                )
+            )
+    else:
+        src_mod = stmt.module or ""
+        if src_mod.startswith("src."):
+            src_mod = src_mod.removeprefix("src.")
+        elif src_mod == "src":
+            src_mod = ""
+        for alias in stmt.names:
+            fqn = f"{src_mod}.{alias.name}" if src_mod else alias.name
+            aliases[alias.asname or alias.name] = fqn
+            edges.append(
+                Edge(
+                    source_id=mod_id,
+                    target_id=f"symbol:{fqn}" if alias.name != "*" else f"module:{src_mod}",
+                    kind="imports",
+                    metadata={"name": alias.name, "alias": alias.asname, **meta_extra},
+                )
+            )
+    return aliases, edges
+
+
 class PythonAstExtractor:
     """Deterministic extractor for Python source files using standard library `ast`."""
 
@@ -749,44 +945,23 @@ class PythonAstExtractor:
 
         import_aliases: dict[str, str] = {}  # local_alias -> target_fqn
 
+        module_defs: set[str] = {
+            stmt.name
+            for stmt in tree.body
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        }
+
+        # Import edges are keyed (source, target, kind), so a later deferred edge
+        # would REPLACE the module-level one and mark a real import-time
+        # dependency as deferred -- hiding the cycle it actually forms.
+        module_import_targets: set[str] = set()
+
         for stmt in tree.body:
-            if isinstance(stmt, ast.Import):
-                for alias in stmt.names:
-                    norm_alias = (
-                        alias.name.removeprefix("src.")
-                        if alias.name.startswith("src.")
-                        else alias.name
-                    )
-                    local_name = alias.asname or alias.name
-                    import_aliases[local_name] = norm_alias
-                    target_id = f"module:{norm_alias}"
-                    edges.append(
-                        Edge(
-                            source_id=mod_id,
-                            target_id=target_id,
-                            kind="imports",
-                            metadata={"alias": alias.asname},
-                        )
-                    )
-            elif isinstance(stmt, ast.ImportFrom):
-                src_mod = stmt.module or ""
-                if src_mod.startswith("src."):
-                    src_mod = src_mod.removeprefix("src.")
-                elif src_mod == "src":
-                    src_mod = ""
-                for alias in stmt.names:
-                    local_name = alias.asname or alias.name
-                    fqn = f"{src_mod}.{alias.name}" if src_mod else alias.name
-                    import_aliases[local_name] = fqn
-                    target_id = f"symbol:{fqn}" if alias.name != "*" else f"module:{src_mod}"
-                    edges.append(
-                        Edge(
-                            source_id=mod_id,
-                            target_id=target_id,
-                            kind="imports",
-                            metadata={"name": alias.name, "alias": alias.asname},
-                        )
-                    )
+            if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+                aliases, import_edges = _import_edges(stmt, mod_id, deferred=False)
+                import_aliases.update(aliases)
+                edges.extend(import_edges)
+                module_import_targets.update(e.target_id for e in import_edges)
 
         # Visitor for classes and functions
         class CodeVisitor(ast.NodeVisitor):
@@ -880,10 +1055,22 @@ class PythonAstExtractor:
                 )
                 edges.append(Edge(source_id=self.parent_id, target_id=fn_id, kind="contains"))
 
+                # Imports written inside the body (this codebase defers them to
+                # keep the package import-light) bind names for this function
+                # only, shadowing the module scope.
+                scope_aliases = dict(import_aliases)
+                for child in ast.walk(node):
+                    if isinstance(child, (ast.Import, ast.ImportFrom)):
+                        local_aliases, local_edges = _import_edges(child, mod_id, deferred=True)
+                        scope_aliases.update(local_aliases)
+                        edges.extend(
+                            e for e in local_edges if e.target_id not in module_import_targets
+                        )
+
                 if ret_type:
                     type_target = (
-                        f"symbol:{import_aliases.get(ret_type, ret_type)}"
-                        if ret_type in import_aliases
+                        f"symbol:{scope_aliases.get(ret_type, ret_type)}"
+                        if ret_type in scope_aliases
                         else f"symbol:{ret_type}"
                     )
                     edges.append(
@@ -894,21 +1081,42 @@ class PythonAstExtractor:
                         )
                     )
 
+                # Names rebound in this function do not reach the module scope.
+                shadowed = _locally_bound_names(node)
+
                 # Find calls inside the function body
                 for child in ast.walk(node):
                     if isinstance(child, ast.Call):
-                        callee_name = None
+                        resolved_target = None
                         if isinstance(child.func, ast.Name):
-                            callee_name = child.func.id
+                            name = child.func.id
+                            if name in shadowed:
+                                resolved_target = f"symbol:{name}"
+                            elif name in scope_aliases:
+                                resolved_target = f"symbol:{scope_aliases[name]}"
+                            elif name in module_defs:
+                                # Python resolves a bare name to this module's
+                                # own definition before anything global.
+                                resolved_target = f"symbol:{mod_name}.{name}"
+                            else:
+                                resolved_target = f"symbol:{name}"
                         elif isinstance(child.func, ast.Attribute):
-                            callee_name = child.func.attr
+                            attr = child.func.attr
+                            # `mod.fn()` where `mod` is an imported module is
+                            # fully resolvable; `self.fn()` and other receivers
+                            # are not, and stay a bare name for the
+                            # unambiguous-name fallback to judge.
+                            base = child.func.value
+                            if (
+                                isinstance(base, ast.Name)
+                                and base.id in scope_aliases
+                                and base.id not in shadowed
+                            ):
+                                resolved_target = f"symbol:{scope_aliases[base.id]}.{attr}"
+                            else:
+                                resolved_target = f"symbol:{attr}"
 
-                        if callee_name:
-                            resolved_target = (
-                                f"symbol:{import_aliases[callee_name]}"
-                                if callee_name in import_aliases
-                                else f"symbol:{callee_name}"
-                            )
+                        if resolved_target:
                             edges.append(
                                 Edge(
                                     source_id=fn_id,
@@ -930,19 +1138,10 @@ class PythonAstExtractor:
         self,
         graph: CodebaseGraph,
         pattern: str = "**/*.py",
-        excludes: Sequence[str] = (
-            ".venv",
-            "venv",
-            "__pycache__",
-            ".git",
-            "build",
-            "dist",
-        ),
+        excludes: Sequence[str] = DEFAULT_EXCLUDES,
     ) -> None:
         """Deterministically index all matching Python files in the repository."""
-        for p in self.repo_root.glob(pattern):
-            if any(ex in p.parts for ex in excludes) or not p.is_file():
-                continue
+        for p in _iter_repo_files(self.repo_root, pattern, excludes):
             nodes, edges = self.extract_file(p)
             graph.add_nodes(nodes)
             graph.add_edges(edges)
@@ -1062,15 +1261,24 @@ class MarkdownExtractor:
         self,
         graph: CodebaseGraph,
         pattern: str = "**/*.md",
-        excludes: Sequence[str] = (".venv", "venv", ".git"),
+        excludes: Sequence[str] = DEFAULT_EXCLUDES,
     ) -> None:
         """Deterministically index markdown files and cross-link with code symbols."""
-        for p in self.repo_root.glob(pattern):
-            if any(ex in p.parts for ex in excludes) or not p.is_file():
-                continue
+        for p in _iter_repo_files(self.repo_root, pattern, excludes):
             nodes, edges = self.extract_file(p)
             graph.add_nodes(nodes)
             graph.add_edges(edges)
+
+
+# An ACP is pasted verbatim into an ephemeral worker's prompt, so every section
+# needs a ceiling: a hub symbol with 200 callers would otherwise crowd out the
+# issue itself. Truncation is always reported so the agent knows the list it is
+# reading is partial rather than complete.
+MAX_ACP_CALLERS = 25
+MAX_ACP_CALLEES = 15
+MAX_ACP_TYPES = 15
+MAX_ACP_TESTS = 25
+MAX_ACP_FOCUS_LINES = 400
 
 
 def render_context_pack(graph: CodebaseGraph, seed_id: str, repo_root: str | Path) -> str:
@@ -1089,7 +1297,12 @@ def render_context_pack(graph: CodebaseGraph, seed_id: str, repo_root: str | Pat
         lines = target_path.read_text(encoding="utf-8", errors="replace").splitlines()
         start = (focus.start_line or 1) - 1
         end = focus.end_line or len(lines)
-        focus_code = "\n".join(lines[start:end])
+        body = lines[start:end]
+        if len(body) > MAX_ACP_FOCUS_LINES:
+            omitted = len(body) - MAX_ACP_FOCUS_LINES
+            body = body[:MAX_ACP_FOCUS_LINES]
+            body.append(f"# ... {omitted} more line(s) omitted; read {focus.path} for the rest.")
+        focus_code = "\n".join(body)
 
     lines_out: list[str] = [
         f"# Agent Context Pack (ACP): {focus.name}",
@@ -1106,18 +1319,49 @@ def render_context_pack(graph: CodebaseGraph, seed_id: str, repo_root: str | Pat
 
     if blast.downstream_callees:
         lines_out.append("### Downstream Callees")
-        for c in blast.downstream_callees:
+        for c in blast.downstream_callees[:MAX_ACP_CALLEES]:
             params = ", ".join(c.metadata.get("params", []))
             ret = c.metadata.get("returns")
             ret_sig = f" -> {ret}" if ret else ""
             doc = c.metadata.get("docstring", "")
             doc_line = f'    """{doc}"""\n' if doc else ""
             lines_out.append(f"```python\ndef {c.name}({params}){ret_sig}:\n{doc_line}    ...\n```")
+        if len(blast.downstream_callees) > MAX_ACP_CALLEES:
+            extra = len(blast.downstream_callees) - MAX_ACP_CALLEES
+            lines_out.append(f"_...and {extra} more callee(s), omitted._")
     else:
         lines_out.append("_No direct downstream callees._")
 
+    if blast.types:
+        lines_out.append("")
+        lines_out.append("### Referenced Types")
+        for t in blast.types[:MAX_ACP_TYPES]:
+            lines_out.append(f"- `{t.name}` ({t.kind}, `{t.path}`:L{t.start_line or 1})")
+
+    # Callers are the whole point of a blast radius: they are what a signature
+    # change breaks. blast_radius() has always computed them; the pack used to
+    # drop them on the floor, so agents saw only what the focus calls, never
+    # what calls the focus.
     lines_out.append("")
-    lines_out.append("## 3. Governing Invariants & Documentation")
+    lines_out.append("## 3. Impact Zone (Callers -- a signature change breaks these)")
+    if blast.upstream_callers:
+        test_ids = {t.id for t in blast.tests}
+        non_test = [c for c in blast.upstream_callers if c.id not in test_ids]
+        shown = non_test[:MAX_ACP_CALLERS]
+        for c in shown:
+            lines_out.append(f"- `{c.path}`:L{c.start_line or 1} — `{c.name}`")
+        if len(non_test) > len(shown):
+            lines_out.append(f"_...and {len(non_test) - len(shown)} more caller(s), omitted._")
+        if not non_test:
+            lines_out.append("_All callers are tests; see section 5._")
+    else:
+        lines_out.append("_No callers found. Treat the signature as still load-bearing:_")
+        lines_out.append(
+            "_unresolved dynamic calls and cross-repo importers are invisible to this graph._"
+        )
+
+    lines_out.append("")
+    lines_out.append("## 4. Governing Invariants & Documentation")
     if blast.invariants or blast.docs:
         for inv in blast.invariants + blast.docs:
             lines_out.append(f"- **{inv.name}** (`{inv.path}`:L{inv.start_line or 1})")
@@ -1125,15 +1369,17 @@ def render_context_pack(graph: CodebaseGraph, seed_id: str, repo_root: str | Pat
         lines_out.append("_No explicit ADRs or invariants linked._")
 
     lines_out.append("")
-    lines_out.append("## 4. Discovered Test Verification Targets")
+    lines_out.append("## 5. Discovered Test Verification Targets")
     if blast.tests:
-        for t in blast.tests:
+        for t in blast.tests[:MAX_ACP_TESTS]:
             lines_out.append(f"- `{t.path}::{t.name}`")
+        if len(blast.tests) > MAX_ACP_TESTS:
+            lines_out.append(f"_...and {len(blast.tests) - MAX_ACP_TESTS} more test(s), omitted._")
     else:
         lines_out.append("_No direct unit test targets detected in blast radius._")
 
     lines_out.append("")
-    lines_out.append("## 5. Scope Boundary Constraint")
+    lines_out.append("## 6. Scope Boundary Constraint")
     lines_out.append(
         f"- Mutation must be strictly confined to `{focus.path}` within symbol `{focus.name}`."
     )
