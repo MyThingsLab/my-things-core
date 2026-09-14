@@ -654,3 +654,71 @@ def test_self_method_call_resolves_against_enclosing_class():
         assert "symbol:engines.Alpha.run" in callers
         # ...and Beta's identically-named method is not laundered in.
         assert "symbol:engines.Beta.run" not in callers
+
+
+def test_ordinary_methods_are_considered_for_test_gaps():
+    # `name LIKE '__%__'` was meant to skip dunders, but `_` is a wildcard, so
+    # it matched every method name of four or more characters -- `close`,
+    # `record`, 179 of this repo's 195 methods -- and none of them was ever
+    # examined for a test gap.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "store.py").write_text(
+            "class Store:\n"
+            "    def __init__(self):\n"
+            "        self.rows = []\n"
+            "    def record(self, row):\n"
+            "        self.rows.append(row)\n"
+            "\n"
+            "def save(s):\n"
+            "    return s.record(1)\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        gap_names = {g.symbol.name for g in graph.find_test_gaps()}
+        assert "record" in gap_names
+        # Dunders really are still excluded.
+        assert "__init__" not in gap_names
+
+
+def test_symbol_used_as_a_value_is_not_reported_dead():
+    # Only calls produced an edge, so a helper passed as a default argument had
+    # no incoming edge at all and was reported as dead code to delete.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "post.py").write_text(
+            "def _urllib_post(body):\n"
+            "    return body\n"
+            "\n"
+            "def _never_used(body):\n"
+            "    return body\n"
+            "\n"
+            "def send(body, poster=_urllib_post):\n"
+            "    return poster(body)\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        dead = {n.name for n in graph.find_unreferenced_symbols()}
+        assert "_urllib_post" not in dead
+        assert "_never_used" in dead
+
+
+def test_public_symbols_are_not_reported_as_dead_internals():
+    # `name LIKE '_%'` does not mean "starts with an underscore" -- `_` is a
+    # wildcard, so this matched every symbol and reported public API as dead.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "api.py").write_text(
+            "class PublicThing:\n    pass\n\ndef _hidden():\n    return 1\n",
+            encoding="utf-8",
+        )
+        graph = CodebaseGraph.in_memory()
+        PythonAstExtractor(repo_root=root).index_repo(graph)
+
+        dead = {n.name for n in graph.find_unreferenced_symbols()}
+        assert "PublicThing" not in dead
+        assert "_hidden" in dead
