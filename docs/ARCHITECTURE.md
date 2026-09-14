@@ -196,7 +196,10 @@ just shared plumbing every tool would otherwise reimplement:
   ephemeral worker context (ADR 0007). Backed by standard library `sqlite3`
   without third-party dependencies, `CodebaseGraph` provides indexed relational
   tables for `nodes` (symbols, modules, doc sections, invariants, ADRs) and
-  `edges` (calls, imports, inherits, references_type, documents, governs, satisfies).
+  `edges` (calls, imports, inherits, references, references_type, documents,
+  governs, satisfies). `references` records a module-level symbol used as a
+  *value* rather than called — a default argument, a decorator, an annotation —
+  so dead-code detection does not mistake it for unused.
 
   **Queries run inside SQLite via recursive Common Table Expressions (CTEs)**:
   `neighbors`, `k_hop_subgraph`, and `blast_radius` (computing upstream callers,

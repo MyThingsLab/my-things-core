@@ -576,17 +576,21 @@ class CodebaseGraph:
     def find_test_gaps(self, min_callers: int = 1) -> list[TestGap]:
         """Identify production symbols with dependent callers but zero direct tests."""
         self._refresh_resolution_index()
-        # What counts as a test is decided in exactly one place, `_is_test_node`.
-        # Spelling it again in SQL drifts: `_` is a single-character LIKE
-        # wildcard, so a `NOT LIKE '%_test.py'` meant to skip `parser_test.py`
-        # also silently swallowed `latest.py` and `pytest.py`.
-        query = """
-        SELECT * FROM nodes
-        WHERE kind IN ('function', 'method')
-          AND NOT (name LIKE '__%__' AND kind = 'method')
-        """
-        rows = self.conn.execute(query).fetchall()
-        prod_nodes = [n for n in (self._row_to_node(r) for r in rows) if not self._is_test_node(n)]
+        # Predicates over names stay in Python. `_` is a single-character LIKE
+        # wildcard, so SQL spellings of them silently over-match: a
+        # `NOT LIKE '%_test.py'` meant to skip `parser_test.py` also swallowed
+        # `latest.py`, and a `LIKE '__%__'` meant to skip dunder methods matched
+        # `close`, `record` and every other method name of four or more
+        # characters -- 179 of this repo's 195 methods, none of which were ever
+        # considered for a test gap.
+        rows = self.conn.execute(
+            "SELECT * FROM nodes WHERE kind IN ('function', 'method')"
+        ).fetchall()
+        prod_nodes = [
+            n
+            for n in (self._row_to_node(r) for r in rows)
+            if not self._is_test_node(n) and not (n.kind == "method" and _is_dunder(n.name))
+        ]
 
         gaps: list[TestGap] = []
         for n in prod_nodes:
@@ -707,13 +711,14 @@ class CodebaseGraph:
 
     def find_unreferenced_symbols(self) -> list[Node]:
         """Identify internal/private symbols with zero incoming code or documentation edges."""
+        # The bare-name fallback below is deliberately *not* narrowed the way
+        # the traversals are. There, an unresolved `symbol:run` matching all 50
+        # `run`s invents callers; here it only ever suppresses a report, and the
+        # report is "this is dead, delete it". Over-suppressing costs nothing;
+        # under-suppressing tells an agent to delete live code.
         query = """
         SELECT n.* FROM nodes n
         WHERE n.kind IN ('function', 'method', 'class')
-          AND n.name LIKE '_%'
-          AND NOT (n.name LIKE '__%__' AND n.kind = 'method')
-          AND n.path NOT LIKE 'tests/%'
-          AND n.path NOT LIKE '%/tests/%'
           AND NOT EXISTS (
               SELECT 1 FROM edges e
               WHERE (
@@ -724,7 +729,16 @@ class CodebaseGraph:
           )
         """
         rows = self.conn.execute(query).fetchall()
-        return [self._row_to_node(r) for r in rows]
+        # `name LIKE '_%'` did not mean "starts with an underscore" -- `_` is a
+        # wildcard, so it matched every symbol, and this returned public API as
+        # dead code.
+        return [
+            n
+            for n in (self._row_to_node(r) for r in rows)
+            if n.name.startswith("_")
+            and not (n.kind == "method" and _is_dunder(n.name))
+            and not self._is_test_node(n)
+        ]
 
 
 def _compute_ast_shape_hash(fn_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
@@ -819,6 +833,10 @@ def _iter_repo_files(root: Path, pattern: str, excludes: Sequence[str]) -> list[
             continue
         found.append(p)
     return found
+
+
+def _is_dunder(name: str) -> bool:
+    return name.startswith("__") and name.endswith("__") and len(name) > 4
 
 
 def _locally_bound_names(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
@@ -945,11 +963,32 @@ class PythonAstExtractor:
 
         import_aliases: dict[str, str] = {}  # local_alias -> target_fqn
 
-        module_defs: set[str] = {
-            stmt.name
+        module_def_spans: dict[str, tuple[int, int]] = {
+            stmt.name: (stmt.lineno, stmt.end_lineno or stmt.lineno)
             for stmt in tree.body
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
         }
+        module_defs: set[str] = set(module_def_spans)
+
+        # Only calls get an edge, so a symbol used as a value -- a default
+        # argument (`poster: Poster = _urllib_post`), a decorator, a
+        # module-level instantiation -- looked like it had no incoming edge at
+        # all, and `find_unreferenced_symbols` reported live code as dead.
+        # A mention inside the definition's own span is not a use of it, or
+        # every recursive function would vouch for itself.
+        for child in ast.walk(tree):
+            if not (isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)):
+                continue
+            span = module_def_spans.get(child.id)
+            if span is None or span[0] <= child.lineno <= span[1]:
+                continue
+            edges.append(
+                Edge(
+                    source_id=mod_id,
+                    target_id=f"symbol:{mod_name}.{child.id}",
+                    kind="references",
+                )
+            )
 
         # Import edges are keyed (source, target, kind), so a later deferred edge
         # would REPLACE the module-level one and mark a real import-time
