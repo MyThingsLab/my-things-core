@@ -5,6 +5,12 @@ All notable changes to `my-things-core` are documented here. Format follows
 [semver](https://semver.org/), per the rules in `src/mythings/release.md`
 (see `docs/CONVENTIONS.md` for the reasoning).
 
+## [1.7.0] - 2026-09-15
+
+**Added — Unified Commit, Issue & PR Schemas in Harness.** Defines standardized schemas in `mythings.harness` for commit messages, issue creation, and PR drafting across all fleet repos. Closes #189.
+
+**Added — Link `mythings.plan` to goal milestone.** Enables connecting task plans directly to organizational goal milestones. Closes #199.
+
 ## [1.6.0] - 2026-09-14
 
 Since v1.5.0 was tagged, six PRs landed on `main` without a version bump —
