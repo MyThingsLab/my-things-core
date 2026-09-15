@@ -1,5 +1,36 @@
 # Changelog
 
+## [Unreleased]
+### Shipped
+- pushed to github.com/lorenzoliuzzo/mythings-core; CI green on first push
+### Added/Changed
+- append-only JSONL ledger — the shared-memory contract every tool writes to
+- policy seam: Action/Decision/Policy vocabulary; MyGuard implements it
+- Engine Protocol + NoopEngine — the single, deterministic LLM seam
+- gh-CLI adapter behind an injectable Runner so tests mock only the process boundary
+- Workspace git-worktree sandbox + in_github_actions
+- export engine/github/isolation contracts from the package root
+- add in-repo build-provenance ledger (dogfoods mythings.ledger) + convention doc; backfilled from history
+- harden CI: concurrency-cancel, paths-ignore(md/docs/dev-ledger), draft-skip, timeout-minutes
+- abstract the build harness: canonical harness.md as package data + CONVENTIONS.md + CLAUDE.md hierarchy; tools vendor HARNESS.md
+- local-first gate: .pre-commit-config.yaml (ruff + pytest-fast) + slow marker
+- design docs for next My[X] tools (Reporter, Tester, Searcher, Reviewer, Groomer)
+- design doc for MyTelegramBot: Policy-decorator that relays ASK to a human over Telegram
+- design docs for six more My[X] tools: MyScaffolder, MyKnowledger, MyAdvisor, MyChangelogger, MyDriftWatcher, MyGrapher
+- design doc for MyDescriber: enriches an open PR's title/description from diff+issue+ledger, keeping description-writing out of every PR-opening tool's own Engine call
+- Add ClaudeCLIEngine to mythings.engine: shells out to the claude CLI in headless print mode (-p --output-format json --tools ""), no SDK dependency, reuses existing claude auth. Never raises — CLI failure or bad JSON degrades to EngineResult(text=""), same contract shape as NoopEngine's empty reply, so every tool's existing summarize-degrades-gracefully path covers it for free
+- add mythings.projects (ProjectV2 GraphQL read/write) for MyProjector
+- harness re-vendor CLI (python -m mythings._harness WORKSPACE [--check]) — turns the hand-copy propagation step into one command with a CI-friendly drift check
+- Support canonical AGENTS.md with CLAUDE.md and GEMINI.md symlinks, plus GeminiCLIEngine
+- Add get_issue, find_open_pr, comment to GitHub, build_engine_from_args to engine, and BaseToolRunner to tool
+- Add run_issue_workflow and seam methods to BaseToolRunner in mythings.tool
+- Promote FakeTransport and FakeCliRunner abstractions into mythings.testing
+### Fixed
+- ClaudeCLIEngine passed --tools followed by a separate empty-string token; verified live that this makes the real claude CLI's (2.1.202) variadic tools-list argv parser keep consuming the next token when nothing with a leading '-' follows -- it swallowed the positional prompt itself whenever request.system was unset (my-reporter's summarize path happened to always set system, masking this). Fixed to a single joined '--tools=' token, matching the CLI's own documented empty-string semantics. Existing tests all mocked the Runner boundary and never caught it; strengthened the no-system-prompt test to assert the prompt stays last
+- ClaudeCLIEngine.run() now strips a whole-string markdown code fence from the result text before json.loads-ing consumers ever see it; low-effort/smaller models (verified: claude-haiku-4-5) wrap JSON replies in ```json fences despite the system prompt forbidding it, silently degrading every Engine-JSON consumer
+- Re-synced docs/tools/my-scraper.md frontmatter from the manifest and added the missing historical banner (PR #53 shipped the doc without either, which broke main's CI via test_tools_manifest.py)
+- Use obj.get('url', '') in GitHub.get_issue to handle optional url key safely
+
 All notable changes to `my-things-core` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is
 [semver](https://semver.org/), per the rules in `src/mythings/release.md`
