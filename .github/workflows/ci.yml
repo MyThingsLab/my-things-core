@@ -37,6 +37,15 @@ jobs:
         run: python -m mythings._compat --check
       - name: Tests
         run: pytest --cov=mythings --cov-report=xml
+      # Catches what check_version_changelog deliberately does not: a PR that
+      # adds or drops an export without the bump RELEASE.md requires for it.
+      # #202 merged six new mythings.contract exports at an unchanged 1.7.0 and
+      # every gate agreed, leaving the module unreachable to the v1 repos that
+      # pin an exact tag. Baseline is the latest tag, not the PR base, so an
+      # addition that already slipped onto main keeps failing instead of
+      # becoming the new normal. Needs the tags, which fetch-depth: 0 gets us.
+      - name: Public surface vs. semver
+        run: python -m mythings._release --check-surface .
       # Editing harness.md strands every sibling repo's vendored HARNESS.md
       # until a sweep lands, and each one's drift test turns red the next time
       # it builds. Only runs when this PR actually touches the canonical copy.
