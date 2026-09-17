@@ -20,6 +20,18 @@ untouched and all-prose milestones keep working. Closes #202.
 New exports: `Criterion`, `CriterionKind`, `parse_criteria`, `run_criteria`,
 `already_green`, `grade`.
 
+**Added — `mythings.deps`: fleet-wide issue-blocking dependency graph.** Parses
+explicit `Blocked by #N` / `Depends on repo#N` markers into a typed
+`DependencyGraph` (nodes are `IssueRef`, edges are `DepEdge` carrying
+`blocked_by` / `depends_on`), and flags cycles rather than resolving them. v1 is
+issues-only and marker-only: a marker without an issue number produces no edge
+instead of a guess, because the fuzzy title matching `goals.blockers()` uses
+within one milestone multiplies its ambiguity across the whole org. First
+consumer is my-dashboard's live graph view. Closes #205.
+
+New exports: `DepEdge`, `DependencyGraph`, `collect_deps`, `detect_dep_cycles`,
+`parse_dep_edges`.
+
 ## [1.7.0] - 2026-09-15
 
 **Added — Unified Commit, Issue & PR Schemas in Harness.** Defines standardized schemas in `mythings.harness` for commit messages, issue creation, and PR drafting across all fleet repos. Closes #189.
