@@ -67,6 +67,25 @@ jobs:
           gh pr view "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" \
             --json title,body --jq '.title + "\n" + .body' \
             | python -m mythings._secrets scan-text
+      # Compares the __all__ surface at the last released tag (not the PR
+      # base branch tip) against the PR head, so a surface addition that
+      # already slipped onto main un-bumped one PR earlier still gets caught
+      # here -- exactly how #202 got through: base-branch comparison alone
+      # would have stayed silent. `release:deferred` opts a feature PR out
+      # when it deliberately defers the bump to a later release PR (the
+      # pattern #200 and release/v1.8.0 follow).
+      - name: Public-surface delta vs last release
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh pr view "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" \
+              --json labels --jq '.labels[].name' | grep -qx 'release:deferred'; then
+            echo "release:deferred label set; skipping surface/version gate"
+          else
+            base_tag="$(git describe --tags --abbrev=0 "${{ github.event.pull_request.base.sha }}")"
+            python -m mythings._release check-surface "$base_tag" "${{ github.event.pull_request.head.sha }}"
+          fi
       # Warn-only for now (continue-on-error): pip-audit's advisory DB flags a
       # lot of transitive dev-dependency noise the fleet hasn't triaged yet.
       # Tripwire first, gate once the false-positive rate is known -- see
