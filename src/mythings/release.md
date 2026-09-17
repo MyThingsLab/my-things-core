@@ -37,7 +37,22 @@ format. Every version bump gets a `## [X.Y.Z] - YYYY-MM-DD` entry in the same
 PR that bumps `pyproject.toml`'s `version`. `python -m mythings._release
 --check` fails a PR whose version changed without a matching entry — it does
 not judge whether a bump was *warranted*, only that a bump and its changelog
-agree. That judgment call stays with whoever authors the PR.
+agree. That judgment call stays with whoever authors the PR — except for the
+one case below where the surface itself says what the bump must be.
+
+## Public surface vs. version
+
+`python -m mythings._release check-surface <base-tag> <head-sha>` unions each
+module's `__all__` at both refs (module-qualified, so a symbol re-exported
+from where it was already public isn't new surface) and fails the PR if the
+delta disagrees with the version bump: growth without at least a MINOR, or a
+removal without a MAJOR. Compares against the **last released tag**, not the
+PR's base branch tip — a surface addition that already landed un-bumped on
+`main` one PR earlier still gets caught here, which base-branch comparison
+alone would miss. A PR that deliberately defers its bump to a later release
+PR opts out with the `release:deferred` label. A dynamically built `__all__`
+(not a literal list/tuple) fails loudly rather than silently counting as no
+surface change.
 
 ## Pinning between v1 repos
 
