@@ -8,6 +8,10 @@ from mythings.contract import (
     parse_criteria,
     run_criteria,
 )
+from mythings.deps import DepEdge, DependencyGraph
+from mythings.deps import collect as collect_deps
+from mythings.deps import detect_cycles as detect_dep_cycles
+from mythings.deps import parse_edges as parse_dep_edges
 from mythings.engine import (
     ClaudeCLIEngine,
     Engine,
@@ -75,6 +79,8 @@ __all__ = [
     "Criterion",
     "CriterionKind",
     "Decision",
+    "DepEdge",
+    "DependencyGraph",
     "Edge",
     "Engine",
     "EngineRequest",
@@ -114,10 +120,12 @@ __all__ = [
     "already_green",
     "app_installation_org",
     "build_engine_from_args",
+    "collect_deps",
     "collect_goals",
     "configure_logging",
     "default_get",
     "default_robots_allowed",
+    "detect_dep_cycles",
     "fetch",
     "get_json",
     "github_app_runner",
@@ -129,6 +137,7 @@ __all__ = [
     "log_structured",
     "parse",
     "parse_criteria",
+    "parse_dep_edges",
     "parse_json_object",
     "read_plan",
     "ready",
