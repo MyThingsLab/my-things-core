@@ -22,3 +22,12 @@ def test_the_suite_imports_this_checkouts_source_not_the_editable_install() -> N
         "The editable install shadowed the worktree -- check `pythonpath` in "
         "[tool.pytest.ini_options]."
     )
+
+
+def test_every_public_export_resolves() -> None:
+    # `__all__` is edited by hand alongside the import block above it, so a name
+    # can be listed without ever being imported. Nothing raises at import time:
+    # `from mythings import *` fails, and `_compat.resolves` reports the
+    # capability unmet, which reads as core having dropped it.
+    missing = [name for name in mythings.__all__ if not hasattr(mythings, name)]
+    assert missing == [], f"listed in __all__ but never imported: {missing}"
