@@ -5,6 +5,21 @@ All notable changes to `my-things-core` are documented here. Format follows
 [semver](https://semver.org/), per the rules in `src/mythings/release.md`
 (see `docs/CONVENTIONS.md` for the reasoning).
 
+## [1.8.0] - 2026-09-17
+
+**Added — `mythings.contract`: executable acceptance criteria.** Turns a goal's
+existing `done_when` strings into checks a machine runs, so "the goal was met"
+no longer rests on the same judgement that produced the diff. `$ <argv>` runs
+shell-free, `ci_green` / `pr_merged` / `issue_closed` resolve through `gh`, and
+anything else stays prose reporting `Check(passed=None)` — forcing
+`needs_human` rather than quietly counting as met. `grade()` requires a
+red→green transition: a criterion already green before the work started can
+never reach `ACCEPTED`. Reuses `mythings.session.Check`; `goals.py` is
+untouched and all-prose milestones keep working. Closes #202.
+
+New exports: `Criterion`, `CriterionKind`, `parse_criteria`, `run_criteria`,
+`already_green`, `grade`.
+
 ## [1.7.0] - 2026-09-15
 
 **Added — Unified Commit, Issue & PR Schemas in Harness.** Defines standardized schemas in `mythings.harness` for commit messages, issue creation, and PR drafting across all fleet repos. Closes #189.
