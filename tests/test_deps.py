@@ -155,3 +155,75 @@ def test_an_unreachable_repo_renders_as_absent_never_as_zero() -> None:
     assert graph.nodes == {}
     assert graph.edges == ()
     assert graph.cycles == ()
+
+
+# ---- phases & critical path ------------------------------------------------
+
+
+def test_compute_phases_layers_open_nodes_topologically() -> None:
+    # Phase 0: r#1, r#2 (no blockers)
+    # Phase 1: r#3 (depends on r#1)
+    # Phase 2: r#4 (depends on r#3)
+    i1 = _issue("r", 1, "")
+    i2 = _issue("r", 2, "")
+    i3 = _issue("r", 3, "Depends on r#1.")
+    i4 = _issue("r", 4, "Depends on r#3.")
+    nodes = {i.slug: i for i in (i1, i2, i3, i4)}
+    edges = parse_edges(i3) + parse_edges(i4)
+
+    from mythings.deps import compute_phases
+
+    phases = compute_phases(nodes, edges)
+    assert phases == (("r#1", "r#2"), ("r#3",), ("r#4",))
+
+
+def test_compute_critical_path_finds_longest_weighted_path() -> None:
+    i1 = IssueRef(repo="r", number=1, title="root", labels=("size:S",))  # weight 1
+    i2 = IssueRef(
+        repo="r", number=2, title="branch A", labels=("size:M",), body="Depends on r#1."
+    )  # weight 3
+    i3 = IssueRef(
+        repo="r", number=3, title="branch B", labels=("size:L",), body="Depends on r#1."
+    )  # weight 8
+    i4 = IssueRef(
+        repo="r", number=4, title="sink", labels=("size:S",), body="Depends on r#3."
+    )  # weight 1
+    nodes = {i.slug: i for i in (i1, i2, i3, i4)}
+    edges = parse_edges(i2) + parse_edges(i3) + parse_edges(i4)
+
+    from mythings.deps import compute_critical_path
+
+    cp = compute_critical_path(nodes, edges)
+    # Path r#1 -> r#3 -> r#4 has weight 1 + 8 + 1 = 10 (vs r#1 -> r#2 weight 4)
+    assert cp == ("r#1", "r#3", "r#4")
+
+
+def test_to_mermaid_and_to_dict() -> None:
+    i1 = IssueRef(repo="r", number=1, title="base", labels=("prio:P0", "size:M", "lane:core"))
+    i2 = IssueRef(
+        repo="r", number=2, title="child", labels=("prio:P1", "size:S"), body="Blocked by r#1."
+    )
+    nodes = {i1.slug: i1, i2.slug: i2}
+    edges = parse_edges(i2)
+    graph = DependencyGraph(
+        nodes=nodes,
+        edges=edges,
+        phases=(("r#1",), ("r#2",)),
+        critical_path=("r#1", "r#2"),
+    )
+
+    mermaid = graph.to_mermaid()
+    assert "graph TD" in mermaid
+    assert "r_1" in mermaid
+    assert "r_2" in mermaid
+    assert "r_1 -->|blocked_by| r_2" in mermaid
+
+    d = graph.to_dict()
+    assert "nodes" in d
+    assert "r#1" in d["nodes"]
+    assert d["nodes"]["r#1"]["lane"] == "core"
+    assert d["nodes"]["r#1"]["prio"] == "P0"
+    assert d["critical_path"] == ["r#1", "r#2"]
+    assert d["phases"] == [["r#1"], ["r#2"]]
+
+
